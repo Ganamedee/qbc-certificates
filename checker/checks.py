@@ -89,10 +89,16 @@ def check_repo(ctx: Context, request, slot, out: RepoResult, seen: dict) -> None
                                                           f"{MAX_REPO_KB // 1024} MB"))
     if not all(i.ok for i in items):
         return
-    if not info.get("default_branch") or size == 0:
+    # GitHub reports a size of 0 for a repo pushed minutes ago, so only the clone can say it's empty.
+    try:
+        repo = clone(owner, name, info.get("default_branch") or "main", ctx.sandbox.work_dir(slot.key))
+    except RepoError:
+        if size:
+            raise
+        repo = None
+    if repo is None or not repo.files:
         items.append(Item(False, "Has files", "the repo is empty"))
         return
-    repo = clone(owner, name, info["default_branch"], ctx.sandbox.work_dir(slot.key))
     if slot.project == "fin4":
         items += pathway.memo_items(ctx, repo, in_fin2=False)
         return
