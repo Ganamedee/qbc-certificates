@@ -1,0 +1,55 @@
+name: "Build Sprint Graduate"
+description: "Claim it: the checker reads your repos and runs the club’s tests."
+title: "Claim: Build Sprint Graduate"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Build Sprint attendance (goal post, check-ins, Demo Day) comes from the sprint's graduate list, which is updated after each Demo Day.
+        Paste the link to each repo below and submit. The checker runs straight away and comments here within a few minutes (pathway builds take longer). If anything is missing it says exactly what; fix it, push, and comment `/recheck`. When everything passes, your certificate is issued automatically and its link lands in this issue.
+
+        **What's checked**
+
+        - The repo is public and yours, with a README.
+        - Your GitHub username is on the sprint's graduate list (goal post in week 0, at least 4 of the 6 weekly check-ins and a Final Showcase post by Demo Day).
+
+        This issue is public: your GitHub username, your repo links and the name you type are visible to anyone. Never put an email address here.
+  - type: dropdown
+    id: claim
+    attributes:
+      label: "What are you claiming?"
+      options:
+        - "Build Sprint Graduate"
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: "Your name, as it should appear on the certificate"
+      description: "Printed on the certificate and shown on its page. Up to 100 characters."
+      placeholder: "Ada Lovelace"
+    validations:
+      required: true
+  - type: input
+    id: repo_sprint
+    attributes:
+      label: "Your Build Sprint project"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: "Your certificate's page"
+      description: "Your repos are listed on the certificate’s page unless you tick this."
+      options:
+        - label: "Don't list my repos on my certificate's page"
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: "Confirm"
+      options:
+        - label: "These repos are mine, and the work in them is my own"
+          required: true

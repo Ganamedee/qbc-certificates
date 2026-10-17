@@ -1,0 +1,72 @@
+name: "Quantum Builder: Intermediate"
+description: "Claim it: the checker reads your repos and runs the club’s tests."
+title: "Claim: Quantum Builder: Intermediate"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paste the link to each repo below and submit. The checker runs straight away and comments here within a few minutes (pathway builds take longer). If anything is missing it says exactly what; fix it, push, and comment `/recheck`. When everything passes, your certificate is issued automatically and its link lands in this issue.
+
+        **What's checked**
+
+        - **Project 05: Grover's Algorithm, the Quantum Search Engine**: 20/20 of the club's tests (test_quantum_search.py) against your starter/ code; search_results.png in the README.
+        - **Project 06: Quantum Maze Solver**: 19/19 of the club's tests (test_quantum_maze.py) against your starter/ code; maze_results.png in the README.
+        - **Project 07: Quantum Key Distribution (BB84)**: 19/19 of the club's tests (test_quantum_bb84.py) against your starter/ code; bb84_results.png in the README; the notice at the top of the README.
+        - Every repo: public and yours (or in an organisation you're a public member of), not a fork, no GUIDE.md or solution/ folder in a ladder project, at least 3 commits of your own with 2 or more changing the code and none to the code by anyone else, and a README with run instructions, What I added, honest limits and your portfolio paragraph (pathway builds: what their card asks for).
+
+        This issue is public: your GitHub username, your repo links and the name you type are visible to anyone. Never put an email address here.
+  - type: dropdown
+    id: claim
+    attributes:
+      label: "What are you claiming?"
+      options:
+        - "Quantum Builder: Intermediate"
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: "Your name, as it should appear on the certificate"
+      description: "Printed on the certificate and shown on its page. Up to 100 characters."
+      placeholder: "Ada Lovelace"
+    validations:
+      required: true
+  - type: input
+    id: repo_05
+    attributes:
+      label: "Project 05: Grover's Algorithm, the Quantum Search Engine"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_06
+    attributes:
+      label: "Project 06: Quantum Maze Solver"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_07
+    attributes:
+      label: "Project 07: Quantum Key Distribution (BB84)"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: "Your certificate's page"
+      description: "Your repos are listed on the certificate’s page unless you tick this."
+      options:
+        - label: "Don't list my repos on my certificate's page"
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: "Confirm"
+      options:
+        - label: "These repos are mine, and the work in them is my own"
+          required: true

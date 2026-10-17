@@ -1,0 +1,55 @@
+name: "Milestone 3: 3-Project Portfolio"
+description: "Confirm it: the checker reads your repos."
+title: "Claim: Milestone 3: 3-Project Portfolio"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paste the link and submit. The checker runs straight away and comments here; when everything passes, the milestone is confirmed and the issue closes.
+
+        **What's checked**
+
+        - Three different projects from Projects 01 to 10, each recognised from its starter/ code, public and yours, with no GUIDE.md or solution/ folder.
+        - Each project's core test file from the club passes against your starter/ code, every test (for example 18/18 for Project 01).
+
+        This issue is public: your GitHub username, your repo links are visible to anyone. Never put an email address here.
+  - type: dropdown
+    id: claim
+    attributes:
+      label: "What are you claiming?"
+      options:
+        - "Milestone 3: 3-Project Portfolio"
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: repo_repo1
+    attributes:
+      label: "Project repo 1"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_repo2
+    attributes:
+      label: "Project repo 2"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_repo3
+    attributes:
+      label: "Project repo 3"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: "Confirm"
+      options:
+        - label: "These repos are mine, and the work in them is my own"
+          required: true

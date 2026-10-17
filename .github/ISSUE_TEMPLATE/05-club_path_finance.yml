@@ -1,0 +1,99 @@
+name: "Quantum Finance Pathway"
+description: "Claim it: the checker reads your repos and runs the club’s tests."
+title: "Claim: Quantum Finance Pathway"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paste the link to each repo below and submit. The checker runs straight away and comments here within a few minutes (pathway builds take longer). If anything is missing it says exactly what; fix it, push, and comment `/recheck`. When everything passes, your certificate is issued automatically and its link lands in this issue.
+
+        **What's checked**
+
+        - **Project 01: Quantum Coin Flip**: 18/18 of the club's tests (test_quantum_coin.py) against your starter/ code; coin_results.png in the README.
+        - **Project 02: Quantum Dice Roller**: 16/16 of the club's tests (test_quantum_dice.py) against your starter/ code; dice_results.png in the README.
+        - **Project 03: Quantum Random Number Generator**: 18/18 of the club's tests (test_quantum_rng.py) against your starter/ code; qrng_results.png in the README.
+        - **FIN-1: Classical Monte Carlo option pricer**: the build card's Acceptance checks, run in a fresh Python 3.13 environment, and what the card asks of the README (convergence.png).
+        - **FIN-2: Amplitude-estimation option pricer**: the build card's Acceptance checks, run in a fresh Python 3.13 environment, and what the card asks of the README (error_vs_calls.png).
+        - **FIN-4 memo (only if it isn't in your FIN-2 repo)** (optional): memo.md or memo.pdf, at most two pages, with 4 or more linked sources including Herman et al. and Chakrabarti et al., and the speedup called quadratic.
+        - Every repo: public and yours (or in an organisation you're a public member of), not a fork, no GUIDE.md or solution/ folder in a ladder project, at least 3 commits of your own with 2 or more changing the code and none to the code by anyone else, and a README with run instructions, What I added, honest limits and your portfolio paragraph (pathway builds: what their card asks for).
+
+        This issue is public: your GitHub username, your repo links and the name you type are visible to anyone. Never put an email address here.
+  - type: dropdown
+    id: claim
+    attributes:
+      label: "What are you claiming?"
+      options:
+        - "Quantum Finance Pathway"
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: "Your name, as it should appear on the certificate"
+      description: "Printed on the certificate and shown on its page. Up to 100 characters."
+      placeholder: "Ada Lovelace"
+    validations:
+      required: true
+  - type: input
+    id: repo_01
+    attributes:
+      label: "Project 01: Quantum Coin Flip"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_02
+    attributes:
+      label: "Project 02: Quantum Dice Roller"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_03
+    attributes:
+      label: "Project 03: Quantum Random Number Generator"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_fin1
+    attributes:
+      label: "FIN-1: Classical Monte Carlo option pricer"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_fin2
+    attributes:
+      label: "FIN-2: Amplitude-estimation option pricer"
+      description: "The link to its public GitHub repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: true
+  - type: input
+    id: repo_fin4
+    attributes:
+      label: "FIN-4 memo (only if it isn't in your FIN-2 repo)"
+      description: "Leave it empty when memo.md or memo.pdf is in your FIN-2 repo."
+      placeholder: "https://github.com/your-username/your-repo"
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: "Your certificate's page"
+      description: "Your repos are listed on the certificate’s page unless you tick this."
+      options:
+        - label: "Don't list my repos on my certificate's page"
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: "Confirm"
+      options:
+        - label: "These repos are mine, and the work in them is my own"
+          required: true

@@ -1,0 +1,79 @@
+# Checks a claim when it's opened, edited or reopened, or when its author comments /recheck.
+# The check job runs members' code in a sandbox and has no write access and no secrets; the report job,
+# which can comment, never runs members' code and treats the check job's result as untrusted input.
+name: check
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+# A new check of a claim replaces the one still running. Any other comment gets a group of its own, so
+# a "thanks" (or someone else's /recheck) can't cancel a check.
+concurrency:
+  group: claim-${{ github.event.issue.number }}-${{ (github.event_name == 'issues' || (startsWith(github.event.comment.body, '/recheck') && github.event.comment.user.id == github.event.issue.user.id)) && 'check' || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: >-
+      contains(github.event.issue.body, '### What are you claiming?') && github.event.issue.state == 'open'
+      && (github.event_name == 'issues'
+          || (!github.event.issue.pull_request && startsWith(github.event.comment.body, '/recheck')
+              && github.event.comment.user.id == github.event.issue.user.id))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Set up the sandbox
+        run: python qbc_check.py setup
+      - name: Prove the sandbox works
+        run: python qbc_check.py selftest
+      - name: Check the claim
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python qbc_check.py check --event "$GITHUB_EVENT_PATH" --out "$RUNNER_TEMP/result.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: result
+          path: ${{ runner.temp }}/result.json
+          retention-days: 7
+
+  report:
+    needs: check
+    if: always() && needs.check.result != 'skipped' && needs.check.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      actions: write    # to turn the hourly sweep back on if GitHub paused it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        if: needs.check.result == 'success'
+        with:
+          name: result
+          path: ${{ runner.temp }}/result
+      - name: Post the result
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CHECK_JOB: ${{ needs.check.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          python qbc_check.py report --event "$GITHUB_EVENT_PATH" --result "$RUNNER_TEMP/result/result.json"
+          --check-job "$CHECK_JOB" --run-url "$RUN_URL"
