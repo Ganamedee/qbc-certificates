@@ -2,7 +2,10 @@
 and no home of the runner's, in its own process, IPC and (except while pip
 installs packages) network namespace, with limits on processes and file
 sizes. The checker's own files and the club's tests sit in a folder that
-user can read but not change.
+user can read but not change. setup() also closes the runner's own folders
+to it (the checker's code, the actions that run after the check) and makes
+sure it can't change any Python it runs, since GitHub's runners make their
+tool cache, where actions/setup-python puts Python, writable by everyone.
 
 Layout (on a GitHub runner, made by setup()):
   /opt/qbc/          the runner's: harness.py, pytest.ini, trusted/, venv/ (the club's stack)
@@ -21,7 +24,9 @@ import json
 import os
 import secrets
 import shutil
+import stat
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -104,6 +109,56 @@ class Sandbox:
             subprocess.run([self.club_python, "-m", "pip", "install", "--quiet", "--no-input",
                             "--disable-pip-version-check", "--only-binary=:all:",
                             *rules.CLUB_REQUIREMENTS], check=True)
+        if not self.unsafe:
+            self.lock()
+
+    def runner_only(self) -> list:
+        """Folders only the runner needs, which lock() closes to the sandbox
+        user: the runner's home, the GitHub Actions work folder (the claims
+        repo's checkout, the actions that run after the check and their temp
+        files) and the checker's own folder, unless one holds the sandbox's."""
+        folders = {Path.home().resolve(), Path(__file__).resolve().parent.parent}
+        if os.environ.get("RUNNER_WORKSPACE"):
+            folders.add(Path(os.environ["RUNNER_WORKSPACE"]).resolve().parent)
+        if os.environ.get("RUNNER_TEMP"):
+            folders.add(Path(os.environ["RUNNER_TEMP"]).resolve())
+        needed = (self.opt.resolve(), self.root.resolve())
+        return sorted(f for f in folders if f.is_dir() and not any(n.is_relative_to(f) for n in needed))
+
+    @staticmethod
+    def python_paths(python: str) -> list:
+        """The folders a Python imports from, its interpreter's and its shared
+        libraries' folders, and the files it has loaded."""
+        done = subprocess.run([python, "-I", "-c", PYTHON_PATHS], capture_output=True, text=True)
+        if done.returncode:
+            raise SandboxError(f"couldn't ask {python} where it imports from: {done.stderr.strip()[-300:]}")
+        return [Path(p) for p in json.loads(done.stdout) if p]
+
+    def read_paths(self) -> list:
+        """Folders the sandbox reads or runs code from but must never change:
+        /opt/qbc, and every folder the club's Python, the base Python and the
+        checker itself import from."""
+        paths = {self.opt, Path(os.path.realpath(sys.executable)).parent, *(Path(p) for p in sys.path if p),
+                 *self.python_paths(self.club_python), *self.python_paths(self.base_python)}
+        return sorted({p.resolve() for p in paths if p.exists()})
+
+    def lock(self) -> None:
+        """Close the runner's own folders to the sandbox user, and take away its
+        write access to everything in, or above, the folders it reads (the
+        sandbox's own folders aside). Whatever the runner's umask, selftest()
+        then proves it."""
+        private = self.runner_only()
+        for folder in private:
+            self._root_cmd(["chmod", "o-rwx", str(folder)])
+        read = [p for p in self.read_paths() if not any(p.is_relative_to(f) for f in private)]
+        trees = [p for p in read if not any(p != q and p.is_relative_to(q) for q in read)]
+        if trees:
+            self._root_cmd(["find", *map(str, trees), "!", "-type", "l", "-perm", "-0002",
+                            "-exec", "chmod", "o-w", "{}", "+"])
+        for parent in sorted({a for p in [*read, self.root.resolve()] for a in p.parents}):
+            mode = parent.stat().st_mode
+            if mode & stat.S_IWOTH and not mode & stat.S_ISVTX:    # a sticky folder, like /tmp, is fine
+                self._root_cmd(["chmod", "o-w", str(parent)])
 
     def _root_cmd(self, argv) -> None:
         done = subprocess.run(self.sudo + list(argv), capture_output=True, text=True)
@@ -294,11 +349,15 @@ class Sandbox:
         secret = Path(tempfile.mkdtemp()) / "secret.txt"
         secret.write_text("runner only\n")
         secret.chmod(0o600)
-        checks = SELFTEST_TESTS.replace("SECRET", json.dumps(str(secret))) \
-            .replace("OPT", json.dumps(str(self.opt)))
+        checks = SELFTEST_TESTS
+        for name, value in (("__OPT__", str(self.opt.resolve())), ("__ROOT__", str(self.root.resolve())),
+                            ("__SECRET__", str(secret)),
+                            ("__RUNNER_ONLY__", [str(f) for f in self.runner_only()])):
+            checks = checks.replace(name, json.dumps(value))
         test = self.opt / "trusted" / "selftest.py"
         test.parent.mkdir(parents=True, exist_ok=True)
         test.write_text(checks)
+        test.chmod(0o644)
         work = self.work_dir("selftest")
         (work / "tests").mkdir()
         self.adopt(work)
@@ -319,9 +378,23 @@ class Sandbox:
                 for name, want in expected.items() if outcomes.get(name) is not want]
 
 
+PYTHON_PATHS = '''
+import json, os, sys, sysconfig
+import _hashlib  # loads the C libraries the harness uses for its signature
+lines = open("/proc/self/maps").read().splitlines() if os.path.exists("/proc/self/maps") else []
+loaded = {line.split(None, 5)[5] for line in lines if len(line.split(None, 5)) == 6}
+print(json.dumps(sys.path + [os.path.dirname(os.path.realpath(sys.executable)), sysconfig.get_config_var("LIBDIR") or ""]
+                 + sorted(p for p in loaded if p.startswith("/") and os.path.exists(p))))
+'''
+
 SELFTEST_TESTS = '''
 import os
 import socket
+import stat
+import sys
+import sysconfig
+
+OPT, ROOT, SECRET, RUNNER_ONLY = __OPT__, __ROOT__, __SECRET__, __RUNNER_ONLY__
 
 
 def test_passes():
@@ -344,16 +417,49 @@ def test_cannot_read_runner_files():
     try:
         open(SECRET).read()
     except OSError:
-        return
-    raise AssertionError("the sandbox read a file only the runner may read")
+        pass
+    else:
+        raise AssertionError("the sandbox read a file only the runner may read")
+    # The runner's home, the checker's own code and the actions that run after the check.
+    seen = [f for f in RUNNER_ONLY if os.access(f, os.R_OK) or os.access(f, os.X_OK)]
+    assert not seen, f"the sandbox can look inside {seen[0]}"
+
+
+def changeable(path):
+    return not os.path.islink(path) and os.access(path, os.W_OK)
+
+
+def above(path):
+    """The folders above path, except sticky ones (like /tmp), where only a file's owner can replace it."""
+    while path != os.path.dirname(path):
+        path = os.path.dirname(path)
+        if not os.stat(path).st_mode & stat.S_ISVTX:
+            yield path
+
+
+def loaded():
+    """The files this process has loaded: libpython, extension modules, C libraries."""
+    with open("/proc/self/maps") as handle:
+        lines = [line.split(None, 5) for line in handle.read().splitlines()]
+    return {line[5] for line in lines if len(line) == 6 and line[5].startswith("/")}
 
 
 def test_cannot_change_club_files():
-    try:
-        open(os.path.join(OPT, "harness.py"), "a").close()
-    except OSError:
-        return
-    raise AssertionError("the sandbox could change the harness")
+    # The harness, the club's tests, every folder this Python imports from, its interpreter, its shared
+    # libraries and the files it has loaded, and the folders above them all: changing any of them could
+    # change what a later run, or the checker itself, does.
+    found = {p for p in (ROOT, *(os.path.join(ROOT, n) for n in ("work", "venvs", "req")), *above(ROOT))
+             if os.path.exists(p) and changeable(p)}
+    tops = sorted({os.path.realpath(t) for t in (OPT, *sys.path, os.path.dirname(os.path.realpath(sys.executable)),
+                                                 sysconfig.get_config_var("LIBDIR"), *loaded())
+                   if t and os.path.exists(t)})
+    for i, top in enumerate(tops):
+        if top.startswith(ROOT + os.sep) or any(top.startswith(t + os.sep) for t in tops[:i]):
+            continue
+        found.update(p for p in (top, *above(top)) if changeable(p))
+        for folder, dirs, files in os.walk(top):
+            found.update(p for p in (os.path.join(folder, n) for n in dirs + files) if changeable(p))
+    assert not found, f"the sandbox can change {len(found)} of the club's files, e.g. {sorted(found)[:3]}"
 
 
 def test_alone():

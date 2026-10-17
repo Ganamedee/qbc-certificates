@@ -254,6 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    os.umask(0o022)     # nothing the checker writes is the sandbox user's to change, whatever the runner's umask
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
