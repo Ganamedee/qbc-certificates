@@ -22,9 +22,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import kinds, seal
-from .config import COMMENT_TAG, KEY_FILE, LOGIN, SEASONS, Season, season_of
+from .config import COMMENT_TAG, KEY_FILE, LOGIN, OFF_BOARD, OFF_LABEL, SEASONS, Season, season_of
 from .gh import GitHub, GitHubError
-from .score import body_sha, grader_sha, load_state, withdrawn
+from .score import body_sha, grader_sha, load_state, off_label, taken_off, withdrawn
 
 BOT = "github-actions[bot]"     # who the workflow's own token posts as
 MAX_RESULTS = 5_000
@@ -63,8 +63,10 @@ def check(item, contexts: dict) -> dict | None:
     out = {k: item[k] for k in ("season", "issue", "author", "author_id", "body_sha", "time")}
     kind = kinds.of(SEASONS[item["season"]])
     outcome = item.get("outcome")
-    if outcome in ("waiting", "withdrawn"):
+    if outcome == "waiting":
         return {**out, "outcome": outcome}
+    if outcome == "withdrawn":      # marker: taken off for its off-the-board line, not closed by a person
+        return {**out, "outcome": outcome, "marker": item.get("marker") is True}
     if outcome == "problem":
         code = item.get("problem")
         if code not in PROBLEMS and code not in kind.PROBLEMS:
@@ -92,7 +94,8 @@ def season_for(issue: dict) -> Season | None:
 
 
 def same_entry(issue: dict | None, result: dict) -> bool:
-    """The issue still has the author, account and body the score job saw, and is still that season's entry."""
+    """The issue still has the author, account and body the score job saw, is still that season's entry, and is
+    still off the board or on it as the result says."""
     if not issue or "pull_request" in issue:
         return False
     user = issue.get("user") or {}
@@ -100,7 +103,11 @@ def same_entry(issue: dict | None, result: dict) -> bool:
     if not (user.get("login") == result["author"] and user.get("id") == result["author_id"]
             and body_sha(issue.get("body")) == result["body_sha"] and season and season.number == result["season"]):
         return False
-    return withdrawn(issue) == (result["outcome"] == "withdrawn")
+    marked = taken_off(issue.get("body"))
+    by_person = withdrawn(issue) and not off_label(issue)      # closed as not planned by a person
+    if result["outcome"] == "withdrawn":
+        return marked and not by_person if result["marker"] else by_person
+    return not marked and not by_person        # on the board, or put back now its line has gone
 
 
 # ---- what the workflow says ----
@@ -145,6 +152,12 @@ def comment_text(season: Season, result: dict, repo: str, standing=None) -> str:
     elif outcome == "waiting":
         lines = [f"{season.emoji} **Season {n}: your card is in.** Scoring switches on as soon as the club's season "
                  f"key is set up, and this comment will show your score then. There's nothing to do meanwhile."]
+    elif outcome == "withdrawn" and result.get("marker"):
+        back = (f"press **Put this entry back on the board** on [its page on the club site]"
+                f"({season.entry_page(number)})" if season.on_site
+                else f"edit this issue and delete the line `{OFF_BOARD}`")
+        lines = [f"{season.emoji} **Season {n}: this entry is off the board**, as you asked. To put it back as it was, "
+                 f"{back}."]
     elif outcome == "withdrawn":
         lines = [f"{season.emoji} **Season {n}: this entry is off the board** because the issue was closed as not "
                  f"planned. Reopen it to put it back."]
@@ -201,7 +214,7 @@ def say(gh, number: int, season: Season, text: str, comment_id: int | None) -> i
     return int(made.get("id") or 0) or None
 
 
-SAME = ("body_sha", "outcome", "problem", "message", "time")    # and each kind's FIELDS, EXTRA and OUTCOMES' fields
+SAME = ("body_sha", "outcome", "problem", "message", "time", "marker")   # and each kind's FIELDS, EXTRA and OUTCOMES'
 
 
 def agrees(state: dict, r: dict, kind) -> tuple:
@@ -250,8 +263,9 @@ def close_cases(gh, season: Season, state: dict, live: dict, report: Counter) ->
         number = int(key)
         try:
             issue = live.get(number) or gh.issue(number)
-            if not issue or (issue.get("user") or {}).get("id") != entry.get("author_id") or withdrawn(issue):
-                continue          # not the same entry any more, or withdrawn: the score job sees to it
+            if (not issue or (issue.get("user") or {}).get("id") != entry.get("author_id") or withdrawn(issue)
+                    or taken_off(issue.get("body"))):
+                continue          # not the same entry any more, or off the board: the score job sees to it
             text = "\n".join(kind.closed_lines(season, lock["issue"]) + ["", tag(season, number)])
             entry["comment_id"] = say(gh, number, season, text, entry.get("comment_id"))
             if issue.get("state") == "open":
@@ -299,13 +313,13 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
     todo = []      # (season, result, issue, the state entry before this run)
     for r in results:
         issue = live.get(r["issue"])
-        if not same_entry(issue, r):
-            report["changed since scoring"] += 1
-            continue
         season, key = SEASONS[r["season"]], str(r["issue"])
         kind = kinds.of(season)
         state = states[season.number]
         known = state["issues"].get(key)
+        if not same_entry(issue, r):
+            report["changed since scoring"] += 1
+            continue
         if getattr(kind, "ONE_SET", False):
             ok, locked = agrees(state, r, kind)
             if not ok:
@@ -315,10 +329,15 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
                 changed.add(season.number)
         if r["outcome"] == "case-open" and write_case(root, season, r):
             report["case written"] += 1
+        # GitHub doesn't show the result yet: an entry off the board for its line is closed as not planned and has
+        # OFF_LABEL, and any other has neither
+        mend = (not (withdrawn(issue) and off_label(issue)) if r.get("marker")
+                else r["outcome"] != "withdrawn" and (withdrawn(issue) or off_label(issue)))
         if r["outcome"] == "waiting":
-            if key in state["waiting"] and not known:
+            if key in state["waiting"] and (known or {}).get("outcome") in (None, "withdrawn") and not mend:
                 continue                                  # already told it's waiting
-            state["issues"].pop(key, None)
+            if (known or {}).get("outcome") != "withdrawn":   # one coming back on the board keeps its time till
+                state["issues"].pop(key, None)                # it's scored
             todo.append((season, r, issue, known))
             changed.add(season.number)
             continue
@@ -326,10 +345,13 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
         entry = {"author": r["author"], "author_id": r["author_id"], "body_sha": r["body_sha"], "time": r["time"],
                  "outcome": r["outcome"]}
         entry.update({k: r[k] for k in ("problem", "message", *kind.FIELDS, *kind.EXTRA, *sorted(kept)) if k in r})
+        if r.get("marker"):
+            entry["marker"] = True                        # taken off for its line, so put back when the line goes
         comment_id = (known or {}).get("comment_id") or state["waiting"].get(key)
         if comment_id:
             entry["comment_id"] = comment_id
-        if known and all(known.get(k) == entry.get(k) for k in (*SAME, *kind.FIELDS, *kind.EXTRA, *sorted(kept))):
+        if known and not mend and all(known.get(k) == entry.get(k)
+                                      for k in (*SAME, *kind.FIELDS, *kind.EXTRA, *sorted(kept))):
             continue                                      # scored again, same result: nothing to say
         state["issues"][key] = entry
         state["waiting"].pop(key, None)
@@ -337,32 +359,55 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
         changed.add(season.number)
 
     tables = {n: kinds.of(SEASONS[n]).table(states[n]) for n in changed}
-    labelled = set()
+    made = set()          # the labels this run has made sure the repo has
     for season, r, issue, known in todo:
         state, key = states[season.number], str(r["issue"])
         try:
-            if season.number not in labelled:
+            if season.label not in made:
                 gh.ensure_label(season.label, season.colour, f"An entry for {season.title}")
-                labelled.add(season.number)
+                made.add(season.label)
+            if r["outcome"] != "withdrawn" and season.label not in {(x or {}).get("name") for x in
+                                                                    issue.get("labels") or []}:
+                gh.add_labels(r["issue"], [season.label])
+                gh.pause(WRITE_PAUSE)
+            if r["outcome"] == "withdrawn":
+                if r["marker"] and not off_label(issue):      # off the board for its line: labelled first, so a later
+                    if OFF_LABEL not in made:                 # run knows the workflow closed it, not a person
+                        gh.ensure_label(OFF_LABEL, "6e7781", "Taken off the board by its author, until they put it "
+                                                             "back")
+                        made.add(OFF_LABEL)
+                    gh.add_labels(r["issue"], [OFF_LABEL])
+                    gh.pause(WRITE_PAUSE)
+                if r["marker"] and not withdrawn(issue):      # then closed as not planned
+                    if issue.get("state") == "closed":
+                        gh.set_state(r["issue"], "open")          # GitHub changes a closed issue's reason only this way
+                        gh.pause(WRITE_PAUSE)
+                    gh.set_state(r["issue"], "closed", "not_planned")
+                    gh.pause(WRITE_PAUSE)
+            else:
+                if withdrawn(issue):          # put back, now its off-the-board line has gone: open again first
+                    gh.set_state(r["issue"], "open")
+                    gh.pause(WRITE_PAUSE)
+                    issue = {**issue, "state": "open"}
+                if r["outcome"] in ("scored", "locked") and issue.get("state") == "open":
+                    gh.set_state(r["issue"], "closed", "completed")
+                    gh.pause(WRITE_PAUSE)
+                elif r["outcome"] == "problem" and issue.get("state") == "closed":
+                    gh.set_state(r["issue"], "open")      # an edit broke a scored card: open, so it's seen
+                    gh.pause(WRITE_PAUSE)
+                if off_label(issue):          # and its label last, once it's back
+                    gh.remove_label(r["issue"], OFF_LABEL)
+                    gh.pause(WRITE_PAUSE)
+            # The comment is the last write, so once it changes the issue already shows what it says.
             text = comment_text(season, r, gh.repo, tables[season.number])
             if r["outcome"] == "waiting":
                 state["waiting"][key] = say(gh, r["issue"], season, text, (known or {}).get("comment_id"))
-            elif r["outcome"] == "withdrawn":
+            elif r["outcome"] == "withdrawn" and not r["marker"]:     # closed by a person: only its comment changes
                 if state["issues"][key].get("comment_id"):
                     say(gh, r["issue"], season, text, state["issues"][key]["comment_id"])
             else:
                 state["issues"][key]["comment_id"] = say(gh, r["issue"], season, text,
                                                          state["issues"][key].get("comment_id"))
-            if r["outcome"] != "withdrawn" and season.label not in {(x or {}).get("name") for x in
-                                                                    issue.get("labels") or []}:
-                gh.add_labels(r["issue"], [season.label])
-                gh.pause(WRITE_PAUSE)
-            if r["outcome"] in ("scored", "locked") and issue.get("state") == "open":
-                gh.set_state(r["issue"], "closed", "completed")
-                gh.pause(WRITE_PAUSE)
-            elif r["outcome"] == "problem" and issue.get("state") == "closed":
-                gh.set_state(r["issue"], "open")      # an edit broke a scored card: open, so it's seen
-                gh.pause(WRITE_PAUSE)
             report[r["outcome"]] += 1
         except GitHubError as error:
             print(f"Couldn't update #{r['issue']} ({error}): the next run tries again.", file=sys.stderr)

@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import cases, forms, kinds, seal
-from .config import LOGIN, SEASONS, Season, season_of
+from .config import LOGIN, OFF_BOARD, OFF_LABEL, SEASONS, Season, season_of
 from .gh import GitHub, GitHubError
 
 CHILD = Path(__file__).resolve().parent / "child.py"
@@ -34,8 +34,29 @@ SWEEP_DAYS = 14      # a scheduled run also looks at every issue changed in this
 CASE_OPENS_PER_RUN = 30     # Season 3 cases one run opens: any more are left for the next run
 
 
+def taken_off(body: str | None) -> bool:
+    """Whether the entry's author has taken it off the board: a line of the body is OFF_BOARD, give or take spaces."""
+    return any(line.strip() == OFF_BOARD for line in (body or "").split("\n"))
+
+
+def unmarked(body: str | None) -> str:
+    """The body as an entry's fingerprint reads it: without its off-the-board lines or trailing whitespace. The club
+    site takes an entry off by adding a blank line and OFF_BOARD at the end, and puts it back by deleting every such
+    line and the trailing whitespace, so the entry reads the same off the board, back on it and as first sent."""
+    return "\n".join(line for line in (body or "").split("\n") if line.strip() != OFF_BOARD).rstrip()
+
+
 def body_sha(body: str | None) -> str:
-    return hashlib.sha256((body or "").encode("utf-8")).hexdigest()
+    """The entry's fingerprint: the same for an entry off the board and back on it, so it keeps its score and time."""
+    return hashlib.sha256(unmarked(body).encode("utf-8")).hexdigest()
+
+
+def fingerprints(body: str | None) -> set:
+    """Every fingerprint the state may hold for an entry with this body: body_sha, and the one the workflow took
+    before the off-the-board line, of the whole body as it was then (the issue form ends a body with a newline)."""
+    text = unmarked(body)
+    return {body_sha(body), *(hashlib.sha256(raw.encode("utf-8")).hexdigest()
+                              for raw in (body or "", text + "\n", text + "\r\n"))}
 
 
 def grader_sha(root: Path, season: Season) -> str:
@@ -48,8 +69,13 @@ def grader_sha(root: Path, season: Season) -> str:
 
 
 def withdrawn(issue: dict) -> bool:
-    """Closed as not planned, by its author or a moderator: off the board until it's reopened."""
+    """Closed as not planned: by the workflow for its off-the-board line (it has OFF_LABEL), so off until the line
+    goes, or by a person, so off until it's reopened."""
     return issue.get("state") == "closed" and issue.get("state_reason") == "not_planned"
+
+
+def off_label(issue: dict) -> bool:
+    return OFF_LABEL in {(label or {}).get("name") for label in issue.get("labels") or []}
 
 
 def load_state(root: Path, season: Season) -> dict:
@@ -222,20 +248,36 @@ def run(gh, root: Path, event: dict, seed: str, now: datetime | None = None) -> 
             if season is None:
                 continue
         known = states[season.number]["issues"].get(str(number))
-        if withdrawn(issue):
-            if known and known.get("outcome") != "withdrawn":
-                todo.append((season, issue, "withdrawn"))
+        off = (known or {}).get("outcome") == "withdrawn"
+        by_line = off and known.get("marker") is True     # the state has it taken off for its off-the-board line
+        if withdrawn(issue) and not off_label(issue):     # closed as not planned by a person: off till it's reopened,
+            if known and (not off or by_line):            # whatever its body says
+                todo.append((season, issue, "closed"))
             continue
-        if (season.number not in full and known and known.get("outcome") != "withdrawn"
-                and known.get("body_sha") == body_sha(issue.get("body"))):
+        if taken_off(issue.get("body")):
+            if not (by_line and withdrawn(issue)):
+                todo.append((season, issue, "marker"))
+            continue
+        # Anything else is scored unless it's the same entry as before, on the board as before. One the workflow
+        # took off for its off-the-board line (it has OFF_LABEL) is put back now the line has gone.
+        if (season.number not in full and known and not off and not off_label(issue)
+                and known.get("body_sha") in fingerprints(issue.get("body"))):
             continue
         todo.append((season, issue, "score"))
     try:
         edited = gh.edited_times([issue["number"] for _, issue, _ in todo]) if todo else {}
     except GitHubError:
         edited = {}          # each entry then counts from its last update, which is never earlier than its edit
-    jobs = [(season, issue, job, edited.get(issue["number"])
-             or (issue.get("created_at") if issue["number"] in edited else None)) for season, issue, job in todo]
+
+    def when(season, issue) -> str | None:
+        """When the entry in the body was made: its last edit, or when it was opened. An entry the workflow already
+        has keeps its time while its body is the same, so taking it off the board and back doesn't move it."""
+        known = states[season.number]["issues"].get(str(issue["number"])) or {}
+        if known.get("body_sha") in fingerprints(issue.get("body")) and isinstance(known.get("time"), str):
+            return known["time"]
+        return edited.get(issue["number"]) or (issue.get("created_at") if issue["number"] in edited else None)
+
+    jobs = [(season, issue, job, when(season, issue)) for season, issue, job in todo]
 
     def order(item) -> tuple:     # Season 3's entries in the order they were made, so the first calls win
         season, issue, _, time = item
@@ -252,8 +294,8 @@ def run(gh, root: Path, event: dict, seed: str, now: datetime | None = None) -> 
     opens = {"left": CASE_OPENS_PER_RUN}
     results = []
     for season, issue, job, time in jobs:
-        if job == "withdrawn":
-            results.append({**about(season, issue, time), "outcome": "withdrawn"})
+        if job in ("marker", "closed"):
+            results.append({**about(season, issue, time), "outcome": "withdrawn", "marker": job == "marker"})
             continue
         try:
             if season.number in locks:

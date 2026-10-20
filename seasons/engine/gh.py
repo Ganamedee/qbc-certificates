@@ -116,6 +116,13 @@ class GitHub:
     def add_labels(self, number: int, labels: list) -> None:
         self._call("POST", f"/repos/{self.repo}/issues/{int(number)}/labels", {"labels": labels})
 
+    def remove_label(self, number: int, name: str) -> None:
+        try:
+            self._call("DELETE", f"/repos/{self.repo}/issues/{int(number)}/labels/{urllib.parse.quote(name, safe='')}")
+        except GitHubError as error:
+            if "HTTP 404" not in str(error):   # 404: it isn't on the issue
+                raise
+
     def ensure_label(self, name: str, colour: str, description: str) -> None:
         try:
             self._call("POST", f"/repos/{self.repo}/labels",

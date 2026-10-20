@@ -10,6 +10,13 @@ from .cases import CASE_DIR
 
 KEY_FILE = "seasons/sealing-key.txt"        # the public half of the season key, written by the post job
 COMMENT_TAG = "<!-- qbc-seasons"            # starts the hidden line that marks the workflow's own comments
+# A line of its own in an entry: its author has taken it off the board until the line goes. The club site adds it
+# (Take this entry off the board) and deletes it again (Put this entry back on the board), and the entry is the same
+# entry either way: score.body_sha leaves the line out.
+OFF_BOARD = "<!-- qbc-seasons: off the board -->"
+# The label the workflow puts on an entry it takes off for that line, before it closes it as not planned, and takes
+# off again once the entry is back: an entry closed as not planned without it was closed by a person.
+OFF_LABEL = "off-the-board"
 SITE = "https://quantumbuilders.club"       # the club website: its season page files cards here as the member
 LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})")
 
