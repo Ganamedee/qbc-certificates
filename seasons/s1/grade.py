@@ -215,7 +215,7 @@ def grade_qasm(hole: Hole, text: str) -> Result:
 
 
 def grade_circuit(hole: Hole, qc) -> Result:
-    """Score a QuantumCircuit by exporting it to QASM first, so you get exactly Daniel's score."""
+    """Score a QuantumCircuit by exporting it to QASM first, so you get exactly the live board's score."""
     if not isinstance(qc, QuantumCircuit):
         return _reject(hole, f"hole{hole.number}() must return a QuantumCircuit, not {type(qc).__name__}")
     for inst in qc.data:

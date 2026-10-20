@@ -13,10 +13,12 @@ on:
 
 permissions: {}
 
-# One run at a time, so the boards are never written twice at once. GitHub keeps only the newest waiting run,
-# and every run looks at all entries changed in the last 14 days, so a dropped run loses nothing.
+# One season run at a time, so the boards are never written twice at once. GitHub keeps only the newest waiting
+# run in a group, and every run looks at all entries changed in the last 14 days, so a dropped run loses nothing.
+# Every other issue event (a certificate claim, say) still starts this workflow, only to skip its jobs, so it
+# gets a group of its own: in the seasons group it would push out a waiting season run.
 concurrency:
-  group: seasons
+  group: ${{ (github.event_name != 'issues' || contains(github.event.issue.body, '### Your Season 1 card')) && 'seasons' || format('seasons-other-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
