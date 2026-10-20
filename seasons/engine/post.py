@@ -18,22 +18,18 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import boards, seal
+from . import kinds, seal
 from .config import COMMENT_TAG, KEY_FILE, LOGIN, SEASONS, Season, season_of
 from .gh import GitHub, GitHubError
 from .score import body_sha, grader_sha, load_state, withdrawn
 
 BOT = "github-actions[bot]"     # who the workflow's own token posts as
 MAX_RESULTS = 5_000
-MAX_STROKES = 100_000
 WRITE_PAUSE = 1.0               # seconds after each write, well under GitHub's limit on new comments
 LIST_ABOVE = 20                 # with more results than this, read the season's issues in pages, not one by one
 TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 SHA = re.compile(r"[0-9a-f]{64}")
-CARD = re.compile(r"[0-9A-F]{6}")
-NOTES = {"wrong", "invalid", "unplayed", "crashed"}
-PROBLEMS = {"no-author", "no-card", "seal", "wrong-season", "not-yours", "no-holes", "bad-holes", "bad-entry",
-            "too-big", "timeout", "crashed"}
+PROBLEMS = {"no-author", "no-card", "seal", "wrong-season", "not-yours", "bad-entry", "timeout", "crashed"}
 SEAL_TEXTS = {   # SealError messages that open_card can raise, the only ones repeated to a member
     "no sealed card found: paste the whole block, BEGIN and END lines included",
     "the sealed card is damaged: copy it again from your terminal",
@@ -50,8 +46,9 @@ def _int(value, low: int, high: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
 
 
-def check(item, courses: dict) -> dict | None:
-    """The result with only the fields this job uses, or None if anything is missing, odd or out of range."""
+def check(item, contexts: dict) -> dict | None:
+    """The result with only the fields this job uses, or None if anything is missing, odd or out of range.
+    contexts: {season number: what its kind needs to check scores, such as Season 1's holes}."""
     if not isinstance(item, dict) or not _int(item.get("season"), 1, 255) or item["season"] not in SEASONS:
         return None
     if not (_int(item.get("issue"), 1, 10 ** 9) and isinstance(item.get("author"), str)
@@ -60,38 +57,23 @@ def check(item, courses: dict) -> dict | None:
             and isinstance(item.get("time"), str) and TIME.fullmatch(item["time"])):
         return None
     out = {k: item[k] for k in ("season", "issue", "author", "author_id", "body_sha", "time")}
+    kind = kinds.of(SEASONS[item["season"]])
     outcome = item.get("outcome")
     if outcome in ("waiting", "withdrawn"):
         return {**out, "outcome": outcome}
     if outcome == "problem":
         code = item.get("problem")
-        if code not in PROBLEMS:
+        if code not in PROBLEMS and code not in kind.PROBLEMS:
             return None
         message = item.get("message") if code == "seal" else None
         if message is not None and not (message in SEAL_TEXTS or SEAL_SEASON.fullmatch(str(message))):
             message = None
-        return {**out, "outcome": "problem", "problem": code, **({"message": message} if message else {})}
+        return {**out, "outcome": "problem", "problem": code, **({"message": message} if message else {}),
+                **kind.extra(item)}
     if outcome != "scored":
         return None
-    course = courses.get(item["season"]) or []
-    pars = {str(n): p for n, _, p in course}
-    holes, notes = item.get("holes"), item.get("notes")
-    if not (pars and isinstance(holes, dict) and set(holes) == set(pars) and isinstance(notes, dict)
-            and set(notes) <= set(pars) and all(v in NOTES for v in notes.values())):
-        return None
-    if not all(v is None or _int(v, 0, MAX_STROKES) for v in holes.values()):
-        return None
-    solved = sum(v is not None for v in holes.values())
-    total = sum(v if v is not None else 2 * pars[k] for k, v in holes.items())
-    if set(notes) != {k for k, v in holes.items() if v is None}:
-        return None
-    card = item.get("card")
-    if not (item.get("total") == total and item.get("par") == sum(pars.values()) and item.get("solved") == solved
-            and isinstance(card, str) and (card == "none" if solved == 0 else bool(CARD.fullmatch(card)))):
-        return None
-    return {**out, "outcome": "scored", "total": total, "par": item["par"], "solved": solved,
-            "holes": {k: holes[k] for k in sorted(holes, key=int)}, "notes": dict(sorted(notes.items())),
-            "card": card}
+    scores = kind.check(item, contexts.get(item["season"]))
+    return None if scores is None else {**out, "outcome": "scored", **scores}
 
 
 def season_for(issue: dict) -> Season | None:
@@ -121,6 +103,9 @@ def tag(season: Season, number: int) -> str:
 
 
 def problem_text(season: Season, result: dict) -> str:
+    own = kinds.of(season).problem_text(season, result)
+    if own:
+        return own
     command = season.command.format(login=result["author"])
     n = season.number
     code = result["problem"]
@@ -135,19 +120,15 @@ def problem_text(season: Season, result: dict) -> str:
                         f"paste that card instead.",
         "not-yours": f"This card was sealed for a different GitHub account, and a card only counts for the "
                      f"account it names. Run `{command}` and paste that card.",
-        "no-holes": "This card has no solved holes in it. Solve at least one, then make a new card.",
-        "bad-holes": f"This card doesn't match Season {n}'s holes. Make a new card with the latest Season {n} pack.",
-        "bad-entry": f"This card doesn't match Season {n}'s holes. Make a new card with the latest Season {n} pack.",
-        "too-big": "One of the circuits in this card is too big to score. Shorten it, check it with "
-                   "`python grade.py`, then make a new card.",
-        "timeout": "Scoring this card took too long. Check every hole with `python grade.py`, then make a new card.",
-        "crashed": "Something in this card stopped the scorer. Check every hole with `python grade.py`, then "
-                   "make a new card.",
+        "bad-entry": f"This card doesn't match Season {n}. Make a new card with the latest Season {n} pack.",
+        "timeout": f"Scoring this card took too long. Check it with `python {season.tool}`, then make a new card.",
+        "crashed": f"Something in this card stopped the scorer. Check it with `python {season.tool}`, then make a "
+                   f"new card.",
     }[code]
 
 
-def comment_text(season: Season, result: dict, repo: str, place: int | None = None, best: dict | None = None,
-                 count: int = 0) -> str:
+def comment_text(season: Season, result: dict, repo: str, standing=None) -> str:
+    """What the workflow says on an entry. standing: the season's table after this run (kinds.of(season).table)."""
     n, number = season.number, result["issue"]
     form = f"[Season {n} entry form]({season.form_url(repo)})"
     outcome = result["outcome"]
@@ -162,21 +143,7 @@ def comment_text(season: Season, result: dict, repo: str, place: int | None = No
                  f"Then edit this issue and paste the new card in, or send it with the {form}. It's scored again "
                  f"within minutes."]
     else:
-        diff = result["total"] - result["par"]
-        holes = " · ".join(f"H{k} {v}" if v is not None else f"H{k} unsolved" for k, v in result["holes"].items())
-        lines = [f"{season.emoji} **Season {n}, scored: {result['total']} strokes** (par {result['par']}, "
-                 f"{diff:+d}), {result['solved']} of {len(result['holes'])} holes solved, card {result['card']}.",
-                 "", holes, ""]
-        board = f"[live board]({season.board_url(repo)})"
-        if best and best["issue"] == number:
-            lines.append(f"This is your best card: **{boards.ordinal(place)} of {count}** on the {board} right now.")
-        elif best:
-            lines.append(f"Your best card is still #{best['issue']}, with {best['total']} strokes: "
-                         f"**{boards.ordinal(place)} of {count}** on the {board} right now.")
-        command = season.command.format(login=result["author"])
-        lines += ["", f"Beat it whenever you like: improve a hole, run `{command}` again and send the new card with "
-                      f"the {form}, or edit this issue and paste it in. Your circuits stay sealed, and only your "
-                      f"strokes are public."]
+        lines = kinds.of(season).scored_lines(season, result, repo, standing)
     return "\n".join(lines + ["", tag(season, number)])
 
 
@@ -223,7 +190,7 @@ def say(gh, number: int, season: Season, text: str, comment_id: int | None) -> i
     return int(made.get("id") or 0) or None
 
 
-SAME = ("body_sha", "outcome", "problem", "message", "total", "holes", "card", "time")
+SAME = ("body_sha", "outcome", "problem", "message", "time")    # and each kind's FIELDS and EXTRA
 
 
 def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
@@ -234,7 +201,7 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
     if not isinstance(raw, list) or len(raw) > MAX_RESULTS:
         raise SystemExit("results.json has no list of results, or far too many")
     report = Counter()
-    courses = {n: boards.holes(root, s) for n, s in SEASONS.items()}
+    contexts = {n: kinds.of(s).context(root, s) for n, s in SEASONS.items()}
     states = {n: load_state(root, s) for n, s in SEASONS.items()}
     changed = set()
 
@@ -245,7 +212,7 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
 
     results, seen = [], set()
     for item in raw:
-        r = check(item, courses)
+        r = check(item, contexts)
         if r is None or r["issue"] in seen:
             report["dropped"] += 1
             continue
@@ -260,6 +227,7 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
             report["changed since scoring"] += 1
             continue
         season, key = SEASONS[r["season"]], str(r["issue"])
+        kind = kinds.of(season)
         state = states[season.number]
         known = state["issues"].get(key)
         if r["outcome"] == "waiting":
@@ -271,19 +239,18 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
             continue
         entry = {"author": r["author"], "author_id": r["author_id"], "body_sha": r["body_sha"], "time": r["time"],
                  "outcome": r["outcome"]}
-        entry.update({k: r[k] for k in ("problem", "message", "total", "par", "solved", "holes", "notes", "card")
-                      if k in r})
+        entry.update({k: r[k] for k in ("problem", "message", *kind.FIELDS, *kind.EXTRA) if k in r})
         comment_id = (known or {}).get("comment_id") or state["waiting"].get(key)
         if comment_id:
             entry["comment_id"] = comment_id
-        if known and all(known.get(k) == entry.get(k) for k in SAME):
+        if known and all(known.get(k) == entry.get(k) for k in (*SAME, *kind.FIELDS, *kind.EXTRA)):
             continue                                      # scored again, same result: nothing to say
         state["issues"][key] = entry
         state["waiting"].pop(key, None)
         todo.append((season, r, issue, known))
         changed.add(season.number)
 
-    tables = {n: boards.standings(states[n]) for n in changed}
+    tables = {n: kinds.of(SEASONS[n]).table(states[n]) for n in changed}
     labelled = set()
     for season, r, issue, known in todo:
         state, key = states[season.number], str(r["issue"])
@@ -291,8 +258,7 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
             if season.number not in labelled:
                 gh.ensure_label(season.label, season.colour, f"An entry for {season.title}")
                 labelled.add(season.number)
-            place, best = boards.rank_of(tables[season.number], r["author_id"], r["author"])
-            text = comment_text(season, r, gh.repo, place, best, len(tables[season.number]))
+            text = comment_text(season, r, gh.repo, tables[season.number])
             if r["outcome"] == "waiting":
                 state["waiting"][key] = say(gh, r["issue"], season, text, (known or {}).get("comment_id"))
             elif r["outcome"] == "withdrawn":
@@ -325,7 +291,8 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
     for number, season in SEASONS.items():
         md, js = season.board(root, "md"), season.board(root, "json")
         if number in changed or not md.exists() or not js.exists():
-            text, data_text = boards.KINDS[number](season, states[number], root, updated, season.form_url(gh.repo))
+            text, data_text = kinds.of(season).board(season, states[number], contexts[number], updated,
+                                                     season.form_url(gh.repo))
             md.parent.mkdir(parents=True, exist_ok=True)
             md.write_text(text, encoding="utf-8")
             js.write_text(data_text, encoding="utf-8")

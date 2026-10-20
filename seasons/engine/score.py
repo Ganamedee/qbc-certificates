@@ -19,7 +19,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import forms, seal
+from . import forms, kinds, seal
 from .config import LOGIN, SEASONS, Season, season_of
 from .gh import GitHub, GitHubError
 
@@ -114,11 +114,12 @@ def score_issue(season: Season, issue: dict, private: bytes | None, root: Path, 
             return {**base, "outcome": "problem", "problem": "not-yours"}
     else:
         entry = {"text": text}
+    kind = kinds.of(season)
     verdict = grade(season, root, entry)
     if not verdict.get("ok"):
-        return {**base, "outcome": "problem", "problem": str(verdict.get("problem") or "crashed")}
-    scores = {k: verdict[k] for k in ("total", "par", "solved", "holes", "notes", "card") if k in verdict}
-    return {**base, "outcome": "scored", **scores}
+        return {**base, "outcome": "problem", "problem": str(verdict.get("problem") or "crashed"),
+                **{k: verdict[k] for k in kind.EXTRA if isinstance(verdict.get(k), str)}}
+    return {**base, "outcome": "scored", **{k: verdict[k] for k in kind.FIELDS if k in verdict}}
 
 
 def candidates(gh, event: dict, now: datetime, full: set) -> dict:

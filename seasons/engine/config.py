@@ -22,6 +22,14 @@ class Season:
     sealed: bool          # entries are sealed cards, opened with SEASONS_SEED
     colour: str           # the label's colour
     command: str          # what a member runs in the pack to make a card, with {login} for their username
+    kind: str             # how its entries are scored and ranked: a module in kinds.KINDS
+    pack: str             # the member pack in the club's repo, which seasons/publish.py copies the grader from
+    files: tuple          # the grader's files in the pack (globs), copied into the grader folder
+
+    @property
+    def tool(self) -> str:
+        """The pack's script a member runs to check their work, such as grade.py."""
+        return self.command.split()[1]
 
     @property
     def label(self) -> str:
@@ -50,7 +58,11 @@ class Season:
 
 SEASONS = {
     1: Season(1, "Quantum Circuit Golf", "⛳", "season-01-circuit-golf.yml", "Your Season 1 card", "seasons/s1",
-              sealed=True, colour="2e8b57", command="python grade.py --card {login}"),
+              sealed=True, colour="2e8b57", command="python grade.py --card {login}", kind="golf",
+              pack="projects/flagships/season-01-circuit-golf", files=("grade.py", "holes/hole*.json")),
+    2: Season(2, "Beat Einstein", "🔔", "season-02-chsh.yml", "Your Season 2 card", "seasons/s2",
+              sealed=True, colour="b8860b", command="python referee.py --card {login}", kind="chsh",
+              pack="projects/flagships/season-02-chsh", files=("referee.py",)),
 }
 
 

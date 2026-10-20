@@ -2,7 +2,8 @@
 
 The score job starts it as `python -I child.py --grader DIR --season N`, with no secrets and no token in its
 environment, sends the entry's scoring part as JSON on stdin and reads one JSON line from stdout. That line holds
-scores only, never the entry. Season 1's entries are OpenQASM 2 text, which the grader parses: no member code runs.
+scores only, never the entry. Every season's entries are OpenQASM 2 text, which its grader parses: no member code
+runs.
 """
 
 from __future__ import annotations
@@ -46,7 +47,26 @@ def golf(grader: Path, entry: dict) -> dict:
     }
 
 
-KINDS = {1: golf}
+def chsh(grader: Path, entry: dict) -> dict:
+    sys.path.insert(0, str(grader))
+    import referee  # the season's own referee, the same file as in the member pack
+
+    raw = entry.get("strategy")
+    if not isinstance(raw, dict) or not raw:
+        return {"ok": False, "problem": "no-strategy"}
+    if set(raw) != set(referee.PARTS) or not all(isinstance(v, str) for v in raw.values()):
+        return {"ok": False, "problem": "bad-parts"}
+    circuits = {}
+    for part in referee.PARTS:
+        try:
+            circuits[part] = referee.circuit_from_qasm(part, raw[part])
+        except referee.EntryError:
+            return {"ok": False, "problem": "bad-circuit", "part": part}
+    return {"ok": True, "perfect": referee.rate(referee.score(circuits, "perfect").win),
+            "decaying": referee.rate(referee.score(circuits, "decaying").win)}
+
+
+KINDS = {1: golf, 2: chsh}
 
 
 def main(argv: list | None = None) -> int:
