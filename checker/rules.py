@@ -29,6 +29,14 @@ BASE_URL = "https://quantumbuilders.club"
 MIN_COMMITS = 3
 MIN_CODE_COMMITS = 2
 
+# Build Sprint Graduate, from the sprint repo's pushes (sprint.py): the goal
+# pushed in week 0, work pushed in at least 4 of the 6 weeks after it, and
+# What I shipped pushed by the end of week 6.
+SPRINT_WEEKS = 6
+SPRINT_MIN_WEEKS = 4
+SPRINT_GOAL_WORDS = 8
+SPRINT_SHIPPED_WORDS = 30
+
 # Minutes a step may take on a GitHub runner before it counts as failed.
 TEST_MINUTES = 10
 BUILD_MINUTES = 20
@@ -188,7 +196,9 @@ PROJECTS = {p.key: p for p in LADDER + CARDS}
 @dataclass(frozen=True)
 class Slot:
     """One repo a claim asks for. project is a PROJECTS key, "any" (any public
-    repo of theirs) or "ladder" (any of Projects 01 to 10, found from its code)."""
+    repo of theirs), "ladder" (any of Projects 01 to 10, found from its code),
+    "sprint" (a Build Sprint repo, checked by sprint.py) or "fin4" (the FIN-4
+    memo)."""
     key: str
     label: str
     project: str
@@ -206,7 +216,6 @@ class Claim:
     pinned_requirements: bool = False   # SWE: 01 to 03 with a pinned requirements.txt
     history: bool = True            # check commit history
     readme: bool = True             # check READMEs, charts and the rest of the project
-    roster: bool = False            # Build Sprint: the graduate list decides
     form_order: int = 0
     extra: dict = field(default_factory=dict)
 
@@ -219,8 +228,9 @@ def _card_slot(key, note=""):
     return Slot(key, PROJECTS[key].title, key, note=note)
 
 
-ROSTER_NOTE = ("Build Sprint attendance (goal post, check-ins, Demo Day) comes from the sprint's "
-               "graduate list, which is updated after each Demo Day.")
+SPRINT_NOTE = ("Your sprint is checked from your sprint repo's push history on GitHub, which records "
+               "when each push arrived: when you pushed your goal, the weeks you pushed work, and "
+               "your What I shipped section.")
 
 CLAIMS = (
     Claim("club_foundations", "Quantum Builder: Foundations", "certificate",
@@ -248,8 +258,8 @@ CLAIMS = (
           _ladder_slots("01", "02", "03") + (_card_slot("res1"), _card_slot("res2")),
           form_order=9),
     Claim("club_sprint", "Build Sprint Graduate", "certificate",
-          (Slot("sprint", "Your Build Sprint project", "any"),),
-          history=False, readme=False, roster=True, intro=ROSTER_NOTE, form_order=10),
+          (Slot("sprint", "Your Build Sprint project", "sprint"),),
+          history=False, readme=False, intro=SPRINT_NOTE, form_order=10),
     Claim("milestone_2", "Milestone 2: First Repo", "milestone",
           (Slot("repo1", "Your first public repo", "any"),),
           history=False, readme=False, form_order=11),

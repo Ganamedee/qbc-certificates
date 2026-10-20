@@ -1,7 +1,8 @@
 """Checking a claim, repo by repo, in the order the certificates guide lists:
 public and the member's own, the starter pack's private files left out, a
 commit history of their own, the README and its charts, then the tests.
-Pathway build cards continue in pathway.py.
+Pathway build cards continue in pathway.py, and Build Sprint repos in
+sprint.py.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import files as filecheck
-from . import pathway, readme, rules, trusted
+from . import pathway, readme, rules, sprint, trusted
 from .gh import GitHubError
 from .items import scan_item, tests_item
 from .repo import MAX_REPO_KB, RepoError, clone
@@ -80,9 +81,8 @@ def check_repo(ctx: Context, request, slot, out: RepoResult, seen: dict) -> None
     out.url = f"https://github.com/{info['full_name']}"
     owner, name = info["full_name"].split("/")
     items.append(owner_item(ctx, info, request.login))
-    if not claim.roster:
-        items.append(Item(not info.get("fork"), "Your own repo, not a fork", "" if not info.get("fork")
-                          else "make a new repository of your own and push your work there"))
+    items.append(Item(not info.get("fork"), "Your own repo, not a fork", "" if not info.get("fork")
+                      else "make a new repository of your own and push your work there"))
     size = int(info.get("size") or 0)
     if size > MAX_REPO_KB:
         items.append(Item(False, "Small enough to check", f"{size // 1024} MB; the limit is "
@@ -102,6 +102,9 @@ def check_repo(ctx: Context, request, slot, out: RepoResult, seen: dict) -> None
     if slot.project == "fin4":
         items += pathway.memo_items(ctx, repo, in_fin2=False)
         return
+    if slot.project == "sprint":
+        items += sprint.check(ctx, repo, request.login, request.user_id)
+        return
 
     if slot.project == "ladder":
         found = [p for p in rules.LADDER if f"starter/{p.module}" in repo.files]
@@ -119,11 +122,8 @@ def check_repo(ctx: Context, request, slot, out: RepoResult, seen: dict) -> None
     seen.setdefault(out.project, slot.label)
     project = rules.PROJECTS.get(out.project)
 
-    if not claim.roster and (project is None or project.ladder):   # a sprint project is all theirs
+    if project is None or project.ladder:
         items.append(starter_files_item(repo))
-    if claim.roster:
-        items.append(Item(bool(repo.find("README.md", "README.markdown", "README.rst", "README.txt",
-                                         "README")), "Has a README"))
     if project is None:
         return
     if project.ladder:

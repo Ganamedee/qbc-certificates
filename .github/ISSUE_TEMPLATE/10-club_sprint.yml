@@ -1,17 +1,20 @@
 name: "Build Sprint Graduate"
-description: "Claim it: the checker reads your repos and runs the club’s tests."
+description: "Claim it: the checker reads your sprint repo and when you pushed to it."
 title: "Claim: Build Sprint Graduate"
 body:
   - type: markdown
     attributes:
       value: |
-        Build Sprint attendance (goal post, check-ins, Demo Day) comes from the sprint's graduate list, which is updated after each Demo Day.
+        Your sprint is checked from your sprint repo's push history on GitHub, which records when each push arrived: when you pushed your goal, the weeks you pushed work, and your What I shipped section.
         Paste the link to each repo below and submit. The checker runs straight away and comments here within a few minutes (pathway builds take longer). If anything is missing it says exactly what; fix it, push, and comment `/recheck`. When everything passes, your certificate is issued automatically and its link lands in this issue.
 
         **What's checked**
 
-        - The repo is public and yours, with a README.
-        - Your GitHub username is on the sprint's graduate list (goal post in week 0, at least 4 of the 6 weekly check-ins and a Final Showcase post by Demo Day).
+        - The repo is public and yours (or in an organisation you're a public member of), not a fork, with a README.
+        - **Your goal:** your first push with a Goal section in the README (at least 8 words) starts your sprint. That's week 0, and each week is 7 days from that push.
+        - **Your weeks:** you pushed work to the repo (any branch) in at least 4 of the 6 weeks after week 0.
+        - **Your ship:** by the end of week 6, you pushed a README with a What I shipped section of at least 30 words.
+        - Only your own pushes count, at the times GitHub recorded them (the repo's Activity tab), so commit dates don't matter. A new sprint needs a new repo.
 
         This issue is public: your GitHub username, your repo links and the name you type are visible to anyone. Never put an email address here.
   - type: dropdown

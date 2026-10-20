@@ -7,5 +7,5 @@ line; skool/certificates/README.md explains the whole flow.
 # The modules the public claim forms repo gets (publish.py copies them; the
 # issuer and publish itself stay in the private repo).
 PUBLIC_MODULES = ("__init__", "checks", "claims", "files", "gh", "harness", "items", "pathway",
-                  "readme", "report", "repo", "result", "rules", "sandbox", "scan", "sweep", "swe",
-                  "trusted")
+                  "readme", "report", "repo", "result", "rules", "sandbox", "scan", "sprint", "sweep",
+                  "swe", "trusted")

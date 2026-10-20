@@ -5,11 +5,13 @@ nothing in the repo runs), then it's checked out for the sandbox.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+SHA_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 MAX_REPO_KB = 300_000
 MAX_FILES = 20_000
 MAX_COMMITS = 2_000
@@ -105,6 +107,25 @@ class Repo:
         """The first of names (top-level, any letter case) that's a file."""
         lower = {p.lower(): p for p in self.files if "/" not in p}
         return next((lower[n.lower()] for n in names if n.lower() in lower), None)
+
+    def text_at(self, sha: str, names, limit: int = 1_000_000):
+        """The first of names (top-level, any letter case) as it was in commit
+        sha, or None: no such file then, or no such commit in this clone (a
+        force push can drop one)."""
+        if not SHA_RE.fullmatch(sha or ""):
+            return None
+        try:
+            raw = self.git("ls-tree", "-l", "-z", sha, binary=True)
+        except RepoError:
+            return None
+        blobs = {}
+        for record in raw.split(b"\0"):
+            meta, _, path = record.partition(b"\t")
+            mode, kind, blob, size = (meta.decode().split() + ["", "", "", ""])[:4]
+            if kind == "blob" and mode != "120000" and size.isdigit() and int(size) <= limit:
+                blobs.setdefault(path.decode("utf-8", "replace").lower(), blob)
+        blob = next((blobs[n.lower()] for n in names if n.lower() in blobs), None)
+        return None if blob is None else self.git("cat-file", "blob", blob, limit=limit)
 
     def history(self) -> list:
         out = self.git("log", "--no-color", "--no-renames", f"--max-count={MAX_COMMITS}",

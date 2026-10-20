@@ -76,20 +76,21 @@ class Doc:
                 level = 1 if line.strip()[0] == "=" else 2
                 self.headings.append((i - 1, level, _title(self.lines[i - 1]), i + 1))
 
-    def prose_lines(self, start=0, end=None) -> str:
-        """The text of lines start..end, without code blocks or headings."""
+    def prose_lines(self, start=0, end=None, code=False) -> str:
+        """The text of lines start..end, without headings, and without code
+        blocks (or with them, but not their fences, if code)."""
         heads = {h[0] for h in self.headings} | {h[3] - 1 for h in self.headings}
         end = len(self.lines) if end is None else end
-        return "\n".join(self.lines[i] for i in range(start, end)
-                         if not self.code[i] and i not in heads)
+        return "\n".join(self.lines[i] for i in range(start, end) if i not in heads
+                         and not (FENCE_RE.match(self.lines[i]) if code else self.code[i]))
 
-    def section(self, pattern: str):
+    def section(self, pattern: str, code=False):
         """The body of the first heading matching pattern, subsections
         included, or None."""
         for n, (_, level, title, body) in enumerate(self.headings):
             if re.search(pattern, title, re.I):
                 end = next((h[0] for h in self.headings[n + 1:] if h[1] <= level), len(self.lines))
-                return self.prose_lines(body, end)
+                return self.prose_lines(body, end, code)
         return None
 
     def top(self) -> str:

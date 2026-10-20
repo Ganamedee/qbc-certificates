@@ -6,6 +6,7 @@ reads without one, at a lower rate limit).
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -115,6 +116,22 @@ class GitHub:
                                    (c.get("committer") or {}).get("login"))
         return found
 
+    def activity(self, owner: str, name: str, limit: int = 1000) -> list:
+        """The repo's pushes, oldest first, as GitHub logged them (its
+        Activity tab): who pushed which commit to which branch, and when.
+        GitHub sets that time, so unlike a commit's date nobody can change it."""
+        path, params, found = f"/repos/{_q(owner)}/{_q(name)}/activity", \
+            {"per_page": 100, "direction": "asc"}, []
+        for _ in range(MAX_PAGES):
+            status, data, headers = self.request("GET", path, params=params)
+            if status == 404 or not isinstance(data, list):
+                break
+            found += data
+            params = _next_page(headers)
+            if not params or len(found) >= limit:
+                break
+        return found[:limit]
+
     def workflow_runs(self, owner: str, name: str, branch: str, limit: int = 30) -> list:
         return self.paginate(f"/repos/{_q(owner)}/{_q(name)}/actions/runs", limit=limit,
                              key="workflow_runs", branch=branch, exclude_pull_requests="true")
@@ -166,6 +183,16 @@ def is_actions_bot(user) -> bool:
 
 def _q(part: str) -> str:
     return urllib.parse.quote(str(part), safe="")
+
+
+def _next_page(headers: dict):
+    """The query of the next page, from a cursor-paged Link header, or None."""
+    link = next((v for k, v in (headers or {}).items() if k.lower() == "link"), "")
+    for part in link.split(","):
+        match = re.fullmatch(r'\s*<([^>]+)>\s*;\s*rel="next"\s*', part)
+        if match:
+            return dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(match.group(1)).query)) or None
+    return None
 
 
 def _message(raw: bytes) -> str:

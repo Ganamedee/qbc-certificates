@@ -104,8 +104,11 @@ Claim a Quantum Builders Club certificate, or confirm Milestone 2 or 3, by openi
 
 ### Build Sprint Graduate
 
-- The repo is public and yours, with a README.
-- Your GitHub username is on the sprint's graduate list (goal post in week 0, at least 4 of the 6 weekly check-ins and a Final Showcase post by Demo Day).
+- The repo is public and yours (or in an organisation you're a public member of), not a fork, with a README.
+- **Your goal:** your first push with a Goal section in the README (at least 8 words) starts your sprint. That's week 0, and each week is 7 days from that push.
+- **Your weeks:** you pushed work to the repo (any branch) in at least 4 of the 6 weeks after week 0.
+- **Your ship:** by the end of week 6, you pushed a README with a What I shipped section of at least 30 words.
+- Only your own pushes count, at the times GitHub recorded them (the repo's Activity tab), so commit dates don't matter. A new sprint needs a new repo.
 
 ### Milestone 2: First Repo
 
