@@ -19,7 +19,7 @@ from collections import Counter
 from pathlib import Path
 
 from .boards import names, plural
-from .config import Season
+from .config import SITE, Season
 
 FIELDS = ("caught", "false_alarms", "rigged", "flaws")      # what a scored set of calls carries
 EXTRA = ()                                                   # nothing more on a problem
@@ -172,7 +172,7 @@ def _me(entry: dict, result: dict) -> bool:
 
 def scored_lines(season: Season, result: dict, repo: str, standing: dict) -> list:
     n = season.number
-    board = f"[live board]({season.board_url(repo)})"
+    board = f"[live board]({season.board_link(repo)})"
     caught, alarms, rigged = result["caught"], result["false_alarms"], result["rigged"]
     lines = [f"{season.emoji} **Season {n}, case closed: score {score_of(result)}.** You caught {caught} of the "
              f"{rigged} rigged files in your case, with {plural(alarms, 'false alarm')}.", ""]
@@ -205,6 +205,9 @@ def outcome_lines(season: Season, result: dict, repo: str, standing: dict) -> li
         return [f"{season.emoji} **Season {n}: you're in.** Cases open and calls are scored as soon as the club's "
                 f"season key is set up, and this comment will update then. There's nothing to do meanwhile."]
     if outcome == "case-open":
+        send = (f"send the sealed card into this entry: press **Send your calls** on [its page on the club site]"
+                f"({season.entry_page(result['issue'])})"
+                if season.on_site else "edit this issue and paste the sealed card into the calls box")
         return [f"{season.emoji} **Season {n}: your case is open.** Twelve files of 24,000 bits, made for your GitHub "
                 f"account alone. Between three and five of them are rigged.", "",
                 f"Download it in the Season {n} pack, inside your venv: `python detective.py --case {login}`. "
@@ -213,9 +216,8 @@ def outcome_lines(season: Season, result: dict, repo: str, standing: dict) -> li
                 f"({season.case_page_url(repo, login)}) from your browser and run "
                 f"`python detective.py --case-file FILE` instead.", "",
                 f"Case fingerprint: `{result['fingerprint'][:12]}`", "",
-                f"When your calls are ready, run `{season.command.format(login=login)}`, then edit this issue and "
-                f"paste the sealed card into the calls box. You get one set of calls, so practise first with "
-                f"`python detective.py --practice`."]
+                f"When your calls are ready, run `{season.command.format(login=login)}`, then {send}. You get one "
+                f"set of calls, so practise first with `python detective.py --practice`."]
     if outcome == "locked":
         lock = ((standing or {}).get("locks") or {}).get(str(result["author_id"])) or {}
         score = f" (score {score_of(lock)})" if all(k in lock for k in FIELDS) else ""
@@ -271,8 +273,14 @@ def board(season: Season, state: dict, riggers, updated: str, form_url: str) -> 
     for f in flaws:
         lines.append(f"- {f['name']}: " + (f"caught in {f['caught']} of {plural(f['cases'], 'case')} that had one"
                                            if f["cases"] else "no closed case has had one yet"))
-    command = season.command.format(login="YOUR_GITHUB_USERNAME")
-    lines += ["", f"To get on it: open your case with the [Season {season.number} entry form]({form_url}), calls box "
-                  f"empty. When your calls are ready, seal them with `{command}` in the Season {season.number} pack "
-                  f"and paste the card into the same entry. Your score comes back on your entry within minutes.", ""]
+    n, command = season.number, season.command.format(login="YOUR_GITHUB_USERNAME")
+    if season.on_site:
+        how = (f"To get on it: press **Open my case** on the [club's season page]({SITE}/season#case-{n}). When your "
+               f"calls are ready, seal them with `{command}` in the Season {n} pack and press **Send your calls** on "
+               f"your entry's page. Your score comes back on your entry within minutes.")
+    else:
+        how = (f"To get on it: open your case with the [Season {n} entry form]({form_url}), calls box empty. When "
+               f"your calls are ready, seal them with `{command}` in the Season {n} pack and paste the card into the "
+               f"same entry. Your score comes back on your entry within minutes.")
+    lines += ["", how, ""]
     return "\n".join(lines), json.dumps(data, indent=1, ensure_ascii=False) + "\n"

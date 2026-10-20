@@ -74,6 +74,10 @@ class Season:
         """How a member puts a new card into an entry they've already sent."""
         return "replace the card in this entry" if self.on_site else "edit this issue and paste it in"
 
+    def entry_page(self, number: int) -> str:
+        """An entry's own page on the club site, where its author sends or replaces the card in it."""
+        return f"{SITE}/season/entry/{number}"
+
     def case_path(self, login: str) -> str:
         """A builder's case in the claims repo, from its root: seasons/cases/season-03/<login, lowercased>.txt."""
         if not isinstance(login, str) or not LOGIN.fullmatch(login):
@@ -102,7 +106,7 @@ SEASONS = {
               pack="projects/flagships/season-02-chsh", files=("referee.py",), on_site=True),
     3: Season(3, "Rigged RNG Hunt", "🕵️", "season-03-rng-hunt.yml", "Your Season 3 calls", "seasons/s3",
               sealed=True, colour="6a5acd", command="python detective.py --card {login}", kind="detective",
-              pack="projects/flagships/season-03-rng-hunt", files=("riggers.py",)),
+              pack="projects/flagships/season-03-rng-hunt", files=("riggers.py",), on_site=True),
 }
 
 
