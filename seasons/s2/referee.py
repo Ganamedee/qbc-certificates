@@ -60,8 +60,8 @@ PAIRS = list(itertools.product((0, 1), repeat=2))
 # same file and puts your bars on the live board. Only that workflow can open a card.
 CLAIMS_REPO = "Ganamedee/qbc-certificates"
 KEY_URL = f"https://raw.githubusercontent.com/{CLAIMS_REPO}/main/seasons/sealing-key.txt"
-ENTRY_FORM = f"https://github.com/{CLAIMS_REPO}/issues/new?template=season-02-chsh.yml"
-LIVE_BOARD = f"https://github.com/{CLAIMS_REPO}/blob/HEAD/seasons/boards/season-02.md"
+ENTRY_PAGE = "https://quantumbuilders.club/season"      # files each card in the claims repo as the member
+LIVE_BOARD = "https://quantumbuilders.club/season#season-2"
 CARD_FILE = "my_card.txt"
 KEY_FILE = "sealing-key.txt"   # a copy of the key you saved yourself, used if referee.py can't download it
 GITHUB_NAME = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")
@@ -352,10 +352,11 @@ def send_card(circuits: dict, github: str, key_path: str | None, folder: Path = 
     (folder / CARD_FILE).write_text(text + "\n", encoding="utf-8")
     print(f"\nYour sealed card for GitHub account {github} (also saved in {CARD_FILE}):\n")
     print(text)
-    print(f"\nOnly the club's scoring workflow can open it, so your strategy stays private. Open the Season 2 "
-          f"entry form, paste the whole block (BEGIN and END lines included) and submit it:\n\n"
-          f"  {ENTRY_FORM}\n\nYour win rates and bars come back as a comment on your entry within minutes. "
-          f"The live board:\n\n  {LIVE_BOARD}")
+    print(f"\nOnly the club's scoring workflow can open it, so your strategy stays private. Open the club's "
+          f"season page, paste the whole block (BEGIN and END lines included) and press Send my card:\n\n"
+          f"  {ENTRY_PAGE}\n\nThe first time, GitHub asks you to approve the club's app, Quantum Builders Club: "
+          f"it only files your entry as you. Within minutes your entry's page shows your win rates, the bars this "
+          f"card clears and your place on each bar's list. The live board:\n\n  {LIVE_BOARD}")
     return 0
 
 

@@ -120,8 +120,7 @@ def _me(entry: dict, author_id: int, author: str) -> bool:
 
 def scored_lines(season: Season, result: dict, repo: str, standing: dict) -> list:
     n = season.number
-    form = f"[Season {n} entry form]({season.form_url(repo)})"
-    board = f"[live board]({season.board_url(repo)})"
+    board = f"[live board]({season.board_link(repo)})"
     p, d = result["perfect"], result["decaying"]
     lines = [f"{season.emoji} **Season {n}, scored:** perfect chip {percent(p)} (S = {8 * p - 4:.3f}), decaying chip "
              f"{percent(d)} (S = {8 * d - 4:.3f}).", ""]
@@ -142,7 +141,8 @@ def scored_lines(season: Season, result: dict, repo: str, standing: dict) -> lis
         command = season.command.format(login=result["author"])
         lines += ["", "Still to reach: " + "; ".join(to_go) + ".", "",
                   f"Go for {'it' if len(to_go) == 1 else 'them'} whenever you like: change strategy.py, run "
-                  f"`{command}` again and send the new card with the {form}, or edit this issue and paste it in."]
+                  f"`{command}` again and send the new card {season.send(season.form_url(repo))}, or "
+                  f"{season.replace}."]
     else:
         lines += ["", "That's every bar this season."]
     lines += ["", "Your circuits stay sealed: only your win rates are public."]
@@ -173,6 +173,6 @@ def board(season: Season, state: dict, ctx, updated: str, form_url: str) -> tupl
     reached = f"{percent(best)}, reached by {plural(len(at_best), 'builder')}" if best is not None else "nobody yet"
     lines += ["", f"**Best on the decaying chip:** {reached} (win rates only: every strategy stays sealed)", "",
               f"To get on it: seal your card with `{season.command.format(login='YOUR_GITHUB_USERNAME')}` in the "
-              f"Season {season.number} pack, then send it with the [Season {season.number} entry form]({form_url}). "
-              f"Your bars come back on your entry within minutes.", ""]
+              f"Season {season.number} pack, then send it {season.send(form_url)}. Your bars come back on your "
+              f"entry within minutes.", ""]
     return "\n".join(lines), json.dumps(data, indent=1, ensure_ascii=False) + "\n"

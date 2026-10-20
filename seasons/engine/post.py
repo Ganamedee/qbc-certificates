@@ -6,6 +6,9 @@ closes each entry and rewrites the live boards.
 This job can write to the repo and its issues, but it never sees SEASONS_SEED or an entry's circuits. It uses a
 result only if every field is in range and the issue still has the author, account and body the score job saw,
 and everything it posts is a score, a rank or a fixed message: never anything a member wrote.
+
+Season 3 also has its cases, which this job writes to seasons/cases once riggers.py has read each one back and it's
+the account's own, and its locks: each account's first scored set of calls, kept in the state for good.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ SEAL_TEXTS = {   # SealError messages that open_card can raise, the only ones re
     "this card can't be opened",
 }
 SEAL_SEASON = re.compile(r"this card is for Season \d{1,3}, not Season \d{1,3}")
+GONE = re.compile(r"HTTP 4(04|10)$")      # an issue that's been deleted
 
 
 # ---- checking the score job's results ----
@@ -70,6 +74,9 @@ def check(item, contexts: dict) -> dict | None:
             message = None
         return {**out, "outcome": "problem", "problem": code, **({"message": message} if message else {}),
                 **kind.extra(item)}
+    if outcome in getattr(kind, "OUTCOMES", {}):         # Season 3's case-open and locked
+        fields = kind.check_outcome(item, contexts.get(item["season"]))
+        return None if fields is None else {**out, "outcome": outcome, **fields}
     if outcome != "scored":
         return None
     scores = kind.check(item, contexts.get(item["season"]))
@@ -130,18 +137,22 @@ def problem_text(season: Season, result: dict) -> str:
 def comment_text(season: Season, result: dict, repo: str, standing=None) -> str:
     """What the workflow says on an entry. standing: the season's table after this run (kinds.of(season).table)."""
     n, number = season.number, result["issue"]
-    form = f"[Season {n} entry form]({season.form_url(repo)})"
     outcome = result["outcome"]
-    if outcome == "waiting":
+    own = getattr(kinds.of(season), "outcome_lines", None)      # a kind's own words, such as Season 3's waiting line
+    lines = own(season, result, repo, standing) if own else None
+    if lines is not None:
+        pass
+    elif outcome == "waiting":
         lines = [f"{season.emoji} **Season {n}: your card is in.** Scoring switches on as soon as the club's season "
                  f"key is set up, and this comment will show your score then. There's nothing to do meanwhile."]
     elif outcome == "withdrawn":
         lines = [f"{season.emoji} **Season {n}: this entry is off the board** because the issue was closed as not "
                  f"planned. Reopen it to put it back."]
     elif outcome == "problem":
+        again = ("replace the card in this entry with the new one" if season.on_site
+                 else "edit this issue and paste the new card in")
         lines = [f"{season.emoji} **Season {n}: this entry isn't scored yet.** {problem_text(season, result)}", "",
-                 f"Then edit this issue and paste the new card in, or send it with the {form}. It's scored again "
-                 f"within minutes."]
+                 f"Then {again}, or send it {season.send(season.form_url(repo))}. It's scored again within minutes."]
     else:
         lines = kinds.of(season).scored_lines(season, result, repo, standing)
     return "\n".join(lines + ["", tag(season, number)])
@@ -190,7 +201,72 @@ def say(gh, number: int, season: Season, text: str, comment_id: int | None) -> i
     return int(made.get("id") or 0) or None
 
 
-SAME = ("body_sha", "outcome", "problem", "message", "time")    # and each kind's FIELDS and EXTRA
+SAME = ("body_sha", "outcome", "problem", "message", "time")    # and each kind's FIELDS, EXTRA and OUTCOMES' fields
+
+
+def agrees(state: dict, r: dict, kind) -> tuple:
+    """Season 3: (whether a result agrees with its account's lock, whether it made the lock). Each account's first
+    scored set of calls is its only one: once it's locked, only that entry can be scored (with the lock's values),
+    a later entry is "locked" to it, and either can be withdrawn. Without a lock, nothing can be "locked" yet."""
+    locks = state.setdefault("locks", {})
+    account, outcome = str(r["author_id"]), r["outcome"]
+    lock = locks.get(account)
+    if not isinstance(lock, dict):
+        if outcome == "locked":
+            return False, False
+        if outcome == "scored":
+            locks[account] = {"issue": r["issue"], "author": r["author"], "time": r["time"],
+                              **{k: r[k] for k in kind.FIELDS}}
+            return True, True
+        return True, False
+    if outcome == "scored":
+        return lock.get("issue") == r["issue"] and all(lock.get(k) == r[k] for k in ("time", *kind.FIELDS)), False
+    if outcome == "locked":
+        return lock.get("issue") == r["scored_issue"], False
+    return outcome == "withdrawn", False
+
+
+def write_case(root: Path, season: Season, r: dict) -> bool:
+    """Writes a builder's case where the pack downloads it from, unless it's there already. True if it wrote."""
+    path = season.case_file(root, r["author"])
+    if path.is_file() and path.read_text(encoding="utf-8") == r["case_text"]:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(r["case_text"], encoding="utf-8")
+    return True
+
+
+def close_cases(gh, season: Season, state: dict, live: dict, report: Counter) -> bool:
+    """Season 3: once an account's calls are scored, each of its other open cases says so and is closed, and is
+    locked to the scored one from then on. It looks every run, so a close that failed is tried again (unless the
+    issue's been deleted). True if it changed the state."""
+    kind, locks, done = kinds.of(season), state.get("locks") or {}, False
+    for key in sorted(state["issues"], key=int):
+        entry = state["issues"][key]
+        lock = locks.get(str(entry.get("author_id")))
+        if (entry.get("outcome") != "case-open" or not isinstance(lock, dict) or not isinstance(lock.get("issue"), int)
+                or lock["issue"] == int(key)):
+            continue
+        number = int(key)
+        try:
+            issue = live.get(number) or gh.issue(number)
+            if not issue or (issue.get("user") or {}).get("id") != entry.get("author_id") or withdrawn(issue):
+                continue          # not the same entry any more, or withdrawn: the score job sees to it
+            text = "\n".join(kind.closed_lines(season, lock["issue"]) + ["", tag(season, number)])
+            entry["comment_id"] = say(gh, number, season, text, entry.get("comment_id"))
+            if issue.get("state") == "open":
+                gh.set_state(number, "closed", "completed")
+                gh.pause(WRITE_PAUSE)
+            report["case closed"] += 1
+        except GitHubError as error:
+            if not GONE.search(str(error)):
+                print(f"Couldn't close #{number} ({error}): the next run tries again.", file=sys.stderr)
+                report["failed"] += 1
+                continue
+        state["issues"][key] = {**{k: v for k, v in entry.items() if k != "fingerprint"}, "outcome": "locked",
+                                "scored_issue": lock["issue"]}
+        done = True
+    return done
 
 
 def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
@@ -230,6 +306,15 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
         kind = kinds.of(season)
         state = states[season.number]
         known = state["issues"].get(key)
+        if getattr(kind, "ONE_SET", False):
+            ok, locked = agrees(state, r, kind)
+            if not ok:
+                report["dropped"] += 1
+                continue
+            if locked:
+                changed.add(season.number)
+        if r["outcome"] == "case-open" and write_case(root, season, r):
+            report["case written"] += 1
         if r["outcome"] == "waiting":
             if key in state["waiting"] and not known:
                 continue                                  # already told it's waiting
@@ -237,13 +322,14 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
             todo.append((season, r, issue, known))
             changed.add(season.number)
             continue
+        kept = {k for fields in getattr(kind, "OUTCOMES", {}).values() for k in fields}     # never a case's text
         entry = {"author": r["author"], "author_id": r["author_id"], "body_sha": r["body_sha"], "time": r["time"],
                  "outcome": r["outcome"]}
-        entry.update({k: r[k] for k in ("problem", "message", *kind.FIELDS, *kind.EXTRA) if k in r})
+        entry.update({k: r[k] for k in ("problem", "message", *kind.FIELDS, *kind.EXTRA, *sorted(kept)) if k in r})
         comment_id = (known or {}).get("comment_id") or state["waiting"].get(key)
         if comment_id:
             entry["comment_id"] = comment_id
-        if known and all(known.get(k) == entry.get(k) for k in (*SAME, *kind.FIELDS, *kind.EXTRA)):
+        if known and all(known.get(k) == entry.get(k) for k in (*SAME, *kind.FIELDS, *kind.EXTRA, *sorted(kept))):
             continue                                      # scored again, same result: nothing to say
         state["issues"][key] = entry
         state["waiting"].pop(key, None)
@@ -271,7 +357,7 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
                                                                     issue.get("labels") or []}:
                 gh.add_labels(r["issue"], [season.label])
                 gh.pause(WRITE_PAUSE)
-            if r["outcome"] == "scored" and issue.get("state") == "open":
+            if r["outcome"] in ("scored", "locked") and issue.get("state") == "open":
                 gh.set_state(r["issue"], "closed", "completed")
                 gh.pause(WRITE_PAUSE)
             elif r["outcome"] == "problem" and issue.get("state") == "closed":
@@ -286,6 +372,10 @@ def run(gh, root: Path, data, now: datetime | None = None) -> Counter:
                 state["issues"].pop(key, None)
                 state["waiting"].pop(key, None)
             report["failed"] += 1
+
+    for number, season in SEASONS.items():
+        if getattr(kinds.of(season), "ONE_SET", False) and close_cases(gh, season, states[number], live, report):
+            changed.add(number)
 
     updated = now.strftime("%Y-%m-%d %H:%M UTC")
     for number, season in SEASONS.items():

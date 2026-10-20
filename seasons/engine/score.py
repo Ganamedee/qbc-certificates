@@ -5,6 +5,10 @@
 This job holds SEASONS_SEED and a read-only token. It never prints, comments on or writes an entry: each card is
 opened here and graded by child.py in a clean process, and results.json carries only each entry's issue, author
 and scores. The post job, which can write but never sees the secret, checks them against GitHub before it posts.
+
+Season 3 gives every account a case of its own, made from a seed this job derives for it (cases.py), which goes to
+child.py on stdin and nowhere else. results.json carries the case as it's published, and a score, but never that
+seed, which file holds which flaw, or anyone's calls.
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import forms, kinds, seal
+from . import cases, forms, kinds, seal
 from .config import LOGIN, SEASONS, Season, season_of
 from .gh import GitHub, GitHubError
 
@@ -27,6 +31,7 @@ CHILD = Path(__file__).resolve().parent / "child.py"
 CHILD_SECONDS = 180
 CHILD_MEMORY = 3 * 1024 ** 3
 SWEEP_DAYS = 14      # a scheduled run also looks at every issue changed in this many days
+CASE_OPENS_PER_RUN = 30     # Season 3 cases one run opens: any more are left for the next run
 
 
 def body_sha(body: str | None) -> str:
@@ -91,6 +96,21 @@ def about(season: Season, issue: dict, time: str | None) -> dict:
             "time": time or issue.get("updated_at") or issue.get("created_at")}
 
 
+def open_sealed(season: Season, text: str, private: bytes, base: dict) -> tuple:
+    """(the card's payload, None) if it opens and is this season's card for this entry's author, else (None, the
+    problem result)."""
+    try:
+        entry = seal.open_card(text, private, season.number)
+    except seal.SealError as error:
+        return None, {**base, "outcome": "problem", "problem": "seal", "message": str(error)}
+    if entry.get("season") != season.number:
+        return None, {**base, "outcome": "problem", "problem": "wrong-season"}
+    sealed_for = entry.get("github")
+    if not isinstance(sealed_for, str) or sealed_for.casefold() != base["author"].casefold():
+        return None, {**base, "outcome": "problem", "problem": "not-yours"}
+    return entry, None
+
+
 def score_issue(season: Season, issue: dict, private: bytes | None, root: Path, time: str | None = None) -> dict:
     """time: when the entry in the body was made (its last edit, or when it was opened)."""
     base = about(season, issue, time)
@@ -103,15 +123,9 @@ def score_issue(season: Season, issue: dict, private: bytes | None, root: Path, 
     if season.sealed:
         if private is None:
             return {**base, "outcome": "waiting"}
-        try:
-            entry = seal.open_card(text, private, season.number)
-        except seal.SealError as error:
-            return {**base, "outcome": "problem", "problem": "seal", "message": str(error)}
-        if entry.get("season") != season.number:
-            return {**base, "outcome": "problem", "problem": "wrong-season"}
-        sealed_for = entry.get("github")
-        if not isinstance(sealed_for, str) or sealed_for.casefold() != author.casefold():
-            return {**base, "outcome": "problem", "problem": "not-yours"}
+        entry, problem = open_sealed(season, text, private, base)
+        if problem:
+            return problem
     else:
         entry = {"text": text}
     kind = kinds.of(season)
@@ -120,6 +134,55 @@ def score_issue(season: Season, issue: dict, private: bytes | None, root: Path, 
         return {**base, "outcome": "problem", "problem": str(verdict.get("problem") or "crashed"),
                 **{k: verdict[k] for k in kind.EXTRA if isinstance(verdict.get(k), str)}}
     return {**base, "outcome": "scored", **{k: verdict[k] for k in kind.FIELDS if k in verdict}}
+
+
+def one_set(season: Season) -> bool:
+    """Whether each account's first scored entry is its only one (Season 3)."""
+    return bool(getattr(kinds.of(season), "ONE_SET", False))
+
+
+def score_case(season: Season, issue: dict, private: bytes | None, key: bytes | None, root: Path,
+               time: str | None, locks: dict, opens: dict) -> dict | None:
+    """Season 3: an entry opens the builder's case (calls box empty) or holds their one set of calls (a card).
+    locks: {account id: its lock}, from the state and from this run, since the first set of calls scored locks the
+    account for good. opens: {"left": cases this run may still open}. None: left out, for the next run."""
+    base = about(season, issue, time)
+    author, account = base["author"], base["author_id"]
+    if not LOGIN.fullmatch(author) or account < 1:
+        return {**base, "outcome": "problem", "problem": "no-author"}
+    fields = kinds.of(season).FIELDS
+    lock = locks.get(str(account))
+    if isinstance(lock, dict):
+        if lock.get("issue") == base["issue"]:       # the scored entry itself: whatever it says now, its score stands
+            return {**base, "outcome": "scored", "time": lock.get("time"), **{k: lock.get(k) for k in fields}}
+        return {**base, "outcome": "locked", "scored_issue": lock.get("issue")}
+    text = forms.fields(issue.get("body") or "").get(season.field, "")
+    if not text.strip():
+        if private is None:
+            return {**base, "outcome": "waiting"}
+        if opens["left"] < 1:
+            return None
+        opens["left"] -= 1
+        verdict = grade(season, root, {"seed": cases.case_seed(key, account).hex(), "open": True, "login": author,
+                                       "account": account})
+        if not (verdict.get("ok") and isinstance(verdict.get("fingerprint"), str)
+                and isinstance(verdict.get("case_text"), str)):
+            return None                               # the next run tries again
+        return {**base, "outcome": "case-open", "fingerprint": verdict["fingerprint"],
+                "case_text": verdict["case_text"]}
+    if private is None:
+        return {**base, "outcome": "waiting"}
+    entry, problem = open_sealed(season, text, private, base)
+    if problem:
+        return problem
+    verdict = grade(season, root, {"seed": cases.case_seed(key, account).hex(), "case": entry.get("case"),
+                                   "calls": entry.get("calls")})
+    if not verdict.get("ok"):
+        return {**base, "outcome": "problem", "problem": str(verdict.get("problem") or "crashed")}
+    result = {**base, "outcome": "scored", **{k: verdict[k] for k in fields if k in verdict}}
+    locks[str(account)] = {"issue": base["issue"], "author": author, "time": base["time"],
+                           **{k: result.get(k) for k in fields}}
+    return result
 
 
 def candidates(gh, event: dict, now: datetime, full: set) -> dict:
@@ -146,6 +209,7 @@ def run(gh, root: Path, event: dict, seed: str, now: datetime | None = None) -> 
         private = seal.private_key_from_seed(seed) if seed else None
     except seal.SealError:
         private = None
+    key = cases.case_key(seed) if private else None      # Season 3's cases come from the same secret
     states = {n: load_state(root, s) for n, s in SEASONS.items()}
     graders = {n: grader_sha(root, s) for n, s in SEASONS.items()}
     full = {n for n in SEASONS if states[n].get("grader") != graders[n]}
@@ -170,14 +234,34 @@ def run(gh, root: Path, event: dict, seed: str, now: datetime | None = None) -> 
         edited = gh.edited_times([issue["number"] for _, issue, _ in todo]) if todo else {}
     except GitHubError:
         edited = {}          # each entry then counts from its last update, which is never earlier than its edit
+    jobs = [(season, issue, job, edited.get(issue["number"])
+             or (issue.get("created_at") if issue["number"] in edited else None)) for season, issue, job in todo]
+
+    def order(item) -> tuple:     # Season 3's entries in the order they were made, so the first calls win
+        season, issue, _, time = item
+        if not one_set(season):
+            return (0, "", 0)
+        return (1, str(time or issue.get("updated_at") or issue.get("created_at") or ""), issue["number"])
+
+    jobs.sort(key=order)          # stable: every other season's entries keep their order
+    locks = {}
+    for n, s in SEASONS.items():
+        if one_set(s):
+            held = states[n].get("locks")
+            locks[n] = dict(held) if isinstance(held, dict) else {}
+    opens = {"left": CASE_OPENS_PER_RUN}
     results = []
-    for season, issue, job in todo:
-        time = edited.get(issue["number"]) or (issue.get("created_at") if issue["number"] in edited else None)
+    for season, issue, job, time in jobs:
         if job == "withdrawn":
             results.append({**about(season, issue, time), "outcome": "withdrawn"})
             continue
         try:
-            results.append(score_issue(season, issue, private, root, time))
+            if season.number in locks:
+                result = score_case(season, issue, private, key, root, time, locks[season.number], opens)
+                if result is not None:
+                    results.append(result)
+            else:
+                results.append(score_issue(season, issue, private, root, time))
         except Exception:  # one strange entry must never stop the run, and its details stay out of the log
             results.append({**about(season, issue, time), "outcome": "problem", "problem": "crashed"})
     return {"v": 1, "repo": gh.repo, "key_line": seal.key_line(seal.public_key(private)) if private else None,

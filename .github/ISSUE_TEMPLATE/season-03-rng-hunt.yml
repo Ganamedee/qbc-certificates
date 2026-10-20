@@ -1,0 +1,22 @@
+name: "🕵️ Season 3: Rigged RNG Hunt entry"
+description: "Open your Season 3 case, then send your sealed calls: your score comes back within minutes."
+title: "🕵️ Season 3 entry"
+labels: ["season-03"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **To open your case**, leave the box below empty and send it. Within minutes the workflow comments here with your case, twelve files of bits made for your GitHub account alone, and the command that downloads it into the Season 3 pack.
+
+        **When your calls are ready**, run `python detective.py --card YOUR_GITHUB_USERNAME` in the pack, inside your venv. Then edit this issue and paste the whole sealed block in, BEGIN and END lines included. Your score comes back as a comment within minutes and goes on the [live board](https://github.com/Ganamedee/qbc-certificates/blob/HEAD/seasons/boards/season-03.md). Your calls stay sealed: only the club's scoring workflow can open them.
+
+        One case per GitHub account, and one set of calls: once they're scored, your case is closed for good. Practise first with `python detective.py --practice`.
+  - type: textarea
+    id: card
+    attributes:
+      label: "Your Season 3 calls"
+      description: "Leave it empty to open your case. Later, paste the whole block that `python detective.py --card YOUR_GITHUB_USERNAME` prints."
+      placeholder: "-----BEGIN QBC SEALED CARD-----"
+      render: text
+    validations:
+      required: false

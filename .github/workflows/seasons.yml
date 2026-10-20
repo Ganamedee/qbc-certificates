@@ -1,7 +1,8 @@
 # Scores season entries when they're opened, edited, reopened or closed, and every six hours, then posts each
-# builder's score and rank and rewrites the live boards in seasons/boards. The score job holds SEASONS_SEED and
-# can only read; the post job can write but never sees the secret or anyone's circuits, and it checks every
-# result against GitHub before it posts. Published from the club's repo by seasons/publish.py: edit it there.
+# builder's score and rank, rewrites the live boards in seasons/boards and writes each Season 3 case in
+# seasons/cases. The score job holds SEASONS_SEED and can only read; the post job can write but never sees the
+# secret or anyone's circuits or calls, and it checks every result against GitHub before it posts. Published from
+# the club's repo by seasons/publish.py: edit it there.
 name: seasons
 
 on:
@@ -18,12 +19,12 @@ permissions: {}
 # Every other issue event (a certificate claim, say) still starts this workflow, only to skip its jobs, so it
 # gets a group of its own: in the seasons group it would push out a waiting season run.
 concurrency:
-  group: ${{ (github.event_name != 'issues' || contains(github.event.issue.body, '### Your Season 1 card') || contains(github.event.issue.body, '### Your Season 2 card')) && 'seasons' || format('seasons-other-{0}', github.run_id) }}
+  group: ${{ (github.event_name != 'issues' || contains(github.event.issue.body, '### Your Season 1 card') || contains(github.event.issue.body, '### Your Season 2 card') || contains(github.event.issue.body, '### Your Season 3 calls')) && 'seasons' || format('seasons-other-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
   score:
-    if: github.event_name != 'issues' || contains(github.event.issue.body, '### Your Season 1 card') || contains(github.event.issue.body, '### Your Season 2 card')
+    if: github.event_name != 'issues' || contains(github.event.issue.body, '### Your Season 1 card') || contains(github.event.issue.body, '### Your Season 2 card') || contains(github.event.issue.body, '### Your Season 3 calls')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -82,6 +83,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A seasons/boards seasons/state
+          if [ -d seasons/cases ]; then git add -A seasons/cases; fi
           if [ -f seasons/sealing-key.txt ]; then git add seasons/sealing-key.txt; fi
           if git diff --cached --quiet; then echo "No board changed."; exit 0; fi
           git commit -q -m "seasons: scores and boards"

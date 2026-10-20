@@ -110,12 +110,11 @@ def rank_of(standing: list, author_id: int, author: str) -> tuple:
 
 def scored_lines(season: Season, result: dict, repo: str, standing: list) -> list:
     n, number = season.number, result["issue"]
-    form = f"[Season {n} entry form]({season.form_url(repo)})"
     diff = result["total"] - result["par"]
     per_hole = " · ".join(f"H{k} {v}" if v is not None else f"H{k} unsolved" for k, v in result["holes"].items())
     lines = [f"{season.emoji} **Season {n}, scored: {result['total']} strokes** (par {result['par']}, {diff:+d}), "
              f"{result['solved']} of {len(result['holes'])} holes solved, card {result['card']}.", "", per_hole, ""]
-    board = f"[live board]({season.board_url(repo)})"
+    board = f"[live board]({season.board_link(repo)})"
     place, best = rank_of(standing or [], result["author_id"], result["author"])
     count = len(standing or [])
     if best and best["issue"] == number:
@@ -124,9 +123,9 @@ def scored_lines(season: Season, result: dict, repo: str, standing: list) -> lis
         lines.append(f"Your best card is still #{best['issue']}, with {best['total']} strokes: "
                      f"**{ordinal(place)} of {count}** on the {board} right now.")
     command = season.command.format(login=result["author"])
-    lines += ["", f"Beat it whenever you like: improve a hole, run `{command}` again and send the new card with the "
-                  f"{form}, or edit this issue and paste it in. Your circuits stay sealed, and only your strokes are "
-                  f"public."]
+    lines += ["", f"Beat it whenever you like: improve a hole, run `{command}` again and send the new card "
+                  f"{season.send(season.form_url(repo))}, or {season.replace}. Your circuits stay sealed, and only "
+                  f"your strokes are public."]
     return lines
 
 
@@ -167,6 +166,6 @@ def board(season: Season, state: dict, course: list, updated: str, form_url: str
         lines.append(f"- Hole {b['hole']}, {b['name']} (par {b['par']}): " +
                      (f"{b['best']}, by {plural(b['builders'], 'builder')}" if b["best"] is not None else "unsolved"))
     lines += ["", f"To get on it: seal your card with `{season.command.format(login='YOUR_GITHUB_USERNAME')}` in "
-                  f"the Season {season.number} pack, then send it with the [Season {season.number} entry form]"
-                  f"({form_url}). Your rank comes back on your entry within minutes.", ""]
+                  f"the Season {season.number} pack, then send it {season.send(form_url)}. Your rank comes back on "
+                  f"your entry within minutes.", ""]
     return "\n".join(lines), json.dumps(data, indent=1, ensure_ascii=False) + "\n"

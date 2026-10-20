@@ -2,8 +2,11 @@
 
 The score job starts it as `python -I child.py --grader DIR --season N`, with no secrets and no token in its
 environment, sends the entry's scoring part as JSON on stdin and reads one JSON line from stdout. That line holds
-scores only, never the entry. Every season's entries are OpenQASM 2 text, which its grader parses: no member code
-runs.
+scores only, never the entry. Seasons 1 and 2's entries are OpenQASM 2 text, which their graders parse, and Season
+3's are a list of file numbers: no member code runs.
+
+Season 3 also sends the seed of the builder's own case, which stays in this process: what comes back is the case as
+the workflow publishes it, or a score, never the seed or which file holds which flaw.
 """
 
 from __future__ import annotations
@@ -12,10 +15,13 @@ import argparse
 import contextlib
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
 MAX_INPUT = 300_000
+HEX64 = re.compile(r"[0-9a-f]{64}")
+LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})")     # config.LOGIN: this file runs on its own
 
 
 def golf(grader: Path, entry: dict) -> dict:
@@ -66,7 +72,35 @@ def chsh(grader: Path, entry: dict) -> dict:
             "decaying": referee.rate(referee.score(circuits, "decaying").win)}
 
 
-KINDS = {1: golf, 2: chsh}
+def detective(grader: Path, entry: dict) -> dict:
+    """Season 3. {"seed", "open": true, "login", "account"}: the builder's case, as the workflow publishes it.
+    {"seed", "case", "calls"}: what those calls score on it, if "case" is its fingerprint."""
+    sys.path.insert(0, str(grader))
+    import riggers  # the season's own case maker, the same file as in the member pack
+
+    seed = entry.get("seed")
+    if not (isinstance(seed, str) and HEX64.fullmatch(seed)):
+        return {"ok": False, "problem": "bad-entry"}
+    files, rig = riggers.make_case(bytes.fromhex(seed))
+    fingerprint = riggers.fingerprint(files)
+    if entry.get("open") is True:
+        login, account = entry.get("login"), entry.get("account")
+        if not (isinstance(login, str) and LOGIN.fullmatch(login) and isinstance(account, int)
+                and not isinstance(account, bool) and account > 0):
+            return {"ok": False, "problem": "bad-entry"}
+        return {"ok": True, "fingerprint": fingerprint, "case_text": riggers.case_text(files, login, account)}
+    if entry.get("case") != fingerprint:
+        return {"ok": False, "problem": "wrong-case"}
+    try:
+        calls = riggers.check_calls(entry.get("calls"))
+    except riggers.CaseError:
+        return {"ok": False, "problem": "bad-calls"}
+    scored = riggers.score(calls, rig)
+    return {"ok": True, "caught": scored["caught"], "false_alarms": scored["false_alarms"],
+            "rigged": scored["rigged"], "flaws": scored["flaws"]}
+
+
+KINDS = {1: golf, 2: chsh, 3: detective}
 
 
 def main(argv: list | None = None) -> int:

@@ -52,8 +52,8 @@ TARGET_OPS = {"x", "y", "z", "h", "s", "sdg", "t", "tdg", "cx", "cz", "ch", "swa
 # this same file and puts the score on the live board. Only that workflow can open a card.
 CLAIMS_REPO = "Ganamedee/qbc-certificates"
 KEY_URL = f"https://raw.githubusercontent.com/{CLAIMS_REPO}/main/seasons/sealing-key.txt"
-ENTRY_FORM = f"https://github.com/{CLAIMS_REPO}/issues/new?template=season-01-circuit-golf.yml"
-LIVE_BOARD = f"https://github.com/{CLAIMS_REPO}/blob/HEAD/seasons/boards/season-01.md"
+ENTRY_PAGE = "https://quantumbuilders.club/season"      # files each card in the claims repo as the member
+LIVE_BOARD = "https://quantumbuilders.club/season#season-1"
 CARD_FILE = "my_card.txt"
 KEY_FILE = "sealing-key.txt"   # a copy of the key you saved yourself, used if grade.py can't download it
 GITHUB_NAME = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")
@@ -363,10 +363,11 @@ def send_card(results: list[Result], github: str, key_path: str | None, folder: 
     (folder / CARD_FILE).write_text(text + "\n", encoding="utf-8")
     print(f"\nYour sealed card for GitHub account {github} (also saved in {CARD_FILE}):\n")
     print(text)
-    print(f"\nOnly the club's scoring workflow can open it, so your circuits stay private. Open the Season 1 "
-          f"entry form, paste the whole block (BEGIN and END lines included) and submit it:\n\n"
-          f"  {ENTRY_FORM}\n\nYour score and rank come back as a comment on your entry within minutes. "
-          f"The live board:\n\n  {LIVE_BOARD}")
+    print(f"\nOnly the club's scoring workflow can open it, so your circuits stay private. Open the club's "
+          f"season page, paste the whole block (BEGIN and END lines included) and press Send my card:\n\n"
+          f"  {ENTRY_PAGE}\n\nThe first time, GitHub asks you to approve the club's app, Quantum Builders Club: "
+          f"it only files your entry as you. Within minutes your entry's page shows your strokes, the holes you "
+          f"solved and your rank. The live board:\n\n  {LIVE_BOARD}")
     return 0
 
 
