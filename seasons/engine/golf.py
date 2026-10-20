@@ -17,7 +17,7 @@ from .config import Season
 FIELDS = ("total", "par", "solved", "holes", "notes", "card")      # the scores an entry's result carries
 EXTRA = ()                                                           # nothing more on a problem
 WORDS = {"work": "holes", "public": "strokes", "back": "score and rank",
-         "again": "Your best card counts: send a better one whenever you like, or edit this issue and paste it in."}
+         "again": "Your best card counts: send a better one whenever you like."}
 MAX_STROKES = 100_000
 CARD = re.compile(r"[0-9A-F]{6}")
 NOTES = {"wrong", "invalid", "unplayed", "crashed"}
@@ -124,7 +124,7 @@ def scored_lines(season: Season, result: dict, repo: str, standing: list) -> lis
                      f"**{ordinal(place)} of {count}** on the {board} right now.")
     command = season.command.format(login=result["author"])
     lines += ["", f"Beat it whenever you like: improve a hole, run `{command}` again and send the new card "
-                  f"{season.send(season.form_url(repo))}, or {season.replace}. Your circuits stay sealed, and only "
+                  f"{season.send(season.form_url(repo))}. Your circuits stay sealed, and only "
                   f"your strokes are public."]
     return lines
 

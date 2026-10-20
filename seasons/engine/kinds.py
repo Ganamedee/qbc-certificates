@@ -9,10 +9,10 @@ rest of the engine.
 
 from __future__ import annotations
 
-from . import chsh, detective, golf
+from . import chsh, detective, eve, golf
 from .config import Season
 
-KINDS = {"golf": golf, "chsh": chsh, "detective": detective}
+KINDS = {"golf": golf, "chsh": chsh, "detective": detective, "eve": eve}
 
 
 def of(season: Season):

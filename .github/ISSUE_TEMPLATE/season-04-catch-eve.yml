@@ -1,0 +1,20 @@
+name: "🥷 Season 4: Catch Eve entry"
+description: "Send your sealed Season 4 card: your steal, errors and bars come back within minutes."
+title: "🥷 Season 4 entry"
+labels: ["season-04"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Make your card in the Season 4 pack, inside your venv: `python referee.py --card YOUR_GITHUB_USERNAME`. It scores your spy, then prints a sealed block that only the club's scoring workflow can open, so your circuits stay private and only your steal, errors, spy count and strokes go on the [live board](https://github.com/Ganamedee/qbc-certificates/blob/HEAD/seasons/boards/season-04.md).
+
+        Paste the whole block below, BEGIN and END lines included, and send it. Your steal, errors and bars come back as a comment on this issue within minutes. Every bar you reach stays yours: send a new card whenever you like.
+  - type: textarea
+    id: card
+    attributes:
+      label: "Your Season 4 card"
+      description: "The whole block that `python referee.py --card YOUR_GITHUB_USERNAME` prints."
+      placeholder: "-----BEGIN QBC SEALED CARD-----"
+      render: text
+    validations:
+      required: true

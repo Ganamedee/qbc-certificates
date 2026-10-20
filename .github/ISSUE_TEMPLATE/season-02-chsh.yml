@@ -8,7 +8,7 @@ body:
       value: |
         Make your card in the Season 2 pack, inside your venv: `python referee.py --card YOUR_GITHUB_USERNAME`. It scores your strategy, then prints a sealed block that only the club's scoring workflow can open, so your circuits stay private and only your win rates go on the [live board](https://github.com/Ganamedee/qbc-certificates/blob/HEAD/seasons/boards/season-02.md).
 
-        Paste the whole block below, BEGIN and END lines included, and send it. Your win rates and bars come back as a comment on this issue within minutes. Every bar you reach stays yours: send a new card whenever you like, or edit this issue and paste it in.
+        Paste the whole block below, BEGIN and END lines included, and send it. Your win rates and bars come back as a comment on this issue within minutes. Every bar you reach stays yours: send a new card whenever you like.
   - type: textarea
     id: card
     attributes:

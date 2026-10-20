@@ -2,8 +2,8 @@
 
 The score job starts it as `python -I child.py --grader DIR --season N`, with no secrets and no token in its
 environment, sends the entry's scoring part as JSON on stdin and reads one JSON line from stdout. That line holds
-scores only, never the entry. Seasons 1 and 2's entries are OpenQASM 2 text, which their graders parse, and Season
-3's are a list of file numbers: no member code runs.
+scores only, never the entry. Seasons 1, 2 and 4's entries are OpenQASM 2 text, which their graders parse, and
+Season 3's are a list of file numbers: no member code runs.
 
 Season 3 also sends the seed of the builder's own case, which stays in this process: what comes back is the case as
 the workflow publishes it, or a score, never the seed or which file holds which flaw.
@@ -100,7 +100,29 @@ def detective(grader: Path, entry: dict) -> dict:
             "rigged": scored["rigged"], "flaws": scored["flaws"]}
 
 
-KINDS = {1: golf, 2: chsh, 3: detective}
+def eve(grader: Path, entry: dict) -> dict:
+    """Season 4. {"spy": {part: OpenQASM 2}}: the steal and errors of those three circuits, and the spy's size."""
+    sys.path.insert(0, str(grader))
+    import referee  # the season's own referee, the same file as in the member pack
+
+    raw = entry.get("spy")
+    if not isinstance(raw, dict) or not raw:
+        return {"ok": False, "problem": "no-spy"}
+    if set(raw) != set(referee.PARTS) or not all(isinstance(v, str) for v in raw.values()):
+        return {"ok": False, "problem": "bad-parts"}
+    circuits, qubits = {}, None
+    for part in referee.PARTS:          # the attack first: both listens must have its qubits
+        try:
+            circuits[part] = referee.circuit_from_qasm(part, raw[part], qubits)
+        except referee.EntryError:
+            return {"ok": False, "problem": "bad-circuit", "part": part}
+        qubits = circuits["attack"].num_qubits
+    result = referee.score(circuits)
+    return {"ok": True, "errors": referee.rate(result.errors), "steal": referee.rate(result.steal),
+            "spies": result.spies, "strokes": result.strokes}
+
+
+KINDS = {1: golf, 2: chsh, 3: detective, 4: eve}
 
 
 def main(argv: list | None = None) -> int:

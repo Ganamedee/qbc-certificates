@@ -76,11 +76,6 @@ class Season:
             return f"on the [club's season page]({SITE}/season)"
         return f"with the [Season {self.number} entry form]({form_url})"
 
-    @property
-    def replace(self) -> str:
-        """How a member puts a new card into an entry they've already sent."""
-        return "replace the card in this entry" if self.on_site else "edit this issue and paste it in"
-
     def entry_page(self, number: int) -> str:
         """An entry's own page on the club site, where its author sends or replaces the card in it."""
         return f"{SITE}/season/entry/{number}"
@@ -114,6 +109,9 @@ SEASONS = {
     3: Season(3, "Rigged RNG Hunt", "🕵️", "season-03-rng-hunt.yml", "Your Season 3 calls", "seasons/s3",
               sealed=True, colour="6a5acd", command="python detective.py --card {login}", kind="detective",
               pack="projects/flagships/season-03-rng-hunt", files=("riggers.py",), on_site=True),
+    4: Season(4, "Catch Eve", "🥷", "season-04-catch-eve.yml", "Your Season 4 card", "seasons/s4",
+              sealed=True, colour="2f4f4f", command="python referee.py --card {login}", kind="eve",
+              pack="projects/flagships/season-04-catch-eve", files=("referee.py",), on_site=True),
 }
 
 

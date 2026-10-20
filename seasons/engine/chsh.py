@@ -18,8 +18,7 @@ from .config import Season
 FIELDS = ("perfect", "decaying")      # the exact win rates on each chip, rounded to 9 decimal places
 EXTRA = ("part",)                     # which circuit a "bad-circuit" problem is about
 WORDS = {"work": "strategy", "public": "win rates", "back": "win rates and bars",
-         "again": "Every bar you reach stays yours: send a new card whenever you like, or edit this issue and paste "
-                  "it in."}
+         "again": "Every bar you reach stays yours: send a new card whenever you like."}
 LIMIT = 0.75                                  # the most any classical team wins, on average
 CEILING = math.cos(math.pi / 8) ** 2          # Tsirelson's bound: the most any quantum strategy wins
 CEILING_SLACK = 1e-6
@@ -141,8 +140,7 @@ def scored_lines(season: Season, result: dict, repo: str, standing: dict) -> lis
         command = season.command.format(login=result["author"])
         lines += ["", "Still to reach: " + "; ".join(to_go) + ".", "",
                   f"Go for {'it' if len(to_go) == 1 else 'them'} whenever you like: change strategy.py, run "
-                  f"`{command}` again and send the new card {season.send(season.form_url(repo))}, or "
-                  f"{season.replace}."]
+                  f"`{command}` again and send the new card {season.send(season.form_url(repo))}."]
     else:
         lines += ["", "That's every bar this season."]
     lines += ["", "Your circuits stay sealed: only your win rates are public."]
