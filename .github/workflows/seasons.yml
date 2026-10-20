@@ -1,0 +1,90 @@
+# Scores season entries when they're opened, edited, reopened or closed, and every six hours, then posts each
+# builder's score and rank and rewrites the live boards in seasons/boards. The score job holds SEASONS_SEED and
+# can only read; the post job can write but never sees the secret or anyone's circuits, and it checks every
+# result against GitHub before it posts. Published from the club's repo by seasons/publish.py: edit it there.
+name: seasons
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed]
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+# One run at a time, so the boards are never written twice at once. GitHub keeps only the newest waiting run,
+# and every run looks at all entries changed in the last 14 days, so a dropped run loses nothing.
+concurrency:
+  group: seasons
+  cancel-in-progress: false
+
+jobs:
+  score:
+    if: github.event_name != 'issues' || contains(github.event.issue.body, '### Your Season 1 card')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      # The branch's newest commit, not the one the event saw, so a queued run sees the last run's scores.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install the graders
+        run: python -m pip install --disable-pip-version-check --no-input -r seasons/requirements.txt
+      # -S: this process holds the secret, so it loads nothing from site-packages (the engine is standard library
+      # only). Each entry is graded in a child process with the graders, no secret and no token.
+      - name: Score new and changed entries
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SEASONS_SEED: ${{ secrets.SEASONS_SEED }}
+        run: >-
+          python -E -S -m seasons.engine.score --repo "$GITHUB_REPOSITORY" --event "$GITHUB_EVENT_PATH"
+          --out "$RUNNER_TEMP/results.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: results
+          path: ${{ runner.temp }}/results.json
+          retention-days: 3
+
+  post:
+    needs: score
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: results
+          path: ${{ runner.temp }}/results
+      - name: Post scores and rewrite the boards
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -E -S -m seasons.engine.post --repo "$GITHUB_REPOSITORY" --results "$RUNNER_TEMP/results/results.json"
+      - name: Save the boards
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A seasons/boards seasons/state
+          if [ -f seasons/sealing-key.txt ]; then git add seasons/sealing-key.txt; fi
+          if git diff --cached --quiet; then echo "No board changed."; exit 0; fi
+          git commit -q -m "seasons: scores and boards"
+          for attempt in 1 2 3; do
+            if git push -q; then exit 0; fi
+            git pull -q --rebase
+          done
+          exit 1

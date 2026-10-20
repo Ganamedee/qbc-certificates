@@ -1,0 +1,16 @@
+{
+  "hole": 6,
+  "name": "The Swap",
+  "qubits": 2,
+  "par": 30,
+  "kind": "unitary",
+  "ket": "SWAP q0 and q1",
+  "brief": "Swap the states of q0 and q1, whatever they are. There's no SWAP gate in your bag, and it has to work for every input.",
+  "target": [
+    [
+      "swap",
+      0,
+      1
+    ]
+  ]
+}

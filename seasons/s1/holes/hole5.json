@@ -1,0 +1,14 @@
+{
+  "hole": 5,
+  "name": "Three's Company",
+  "qubits": 2,
+  "par": 14,
+  "kind": "state",
+  "ket": "(|00> + |01> + |10>)/√3",
+  "brief": "Three outcomes, each a one-in-three chance, and never 11. No H gate splits anything into thirds, so you'll need a rotation with exactly the right angle.",
+  "amplitudes": {
+    "00": 0.5773502691896258,
+    "01": 0.5773502691896258,
+    "10": 0.5773502691896258
+  }
+}

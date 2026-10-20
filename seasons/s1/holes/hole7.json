@@ -1,0 +1,14 @@
+{
+  "hole": 7,
+  "name": "The W",
+  "qubits": 3,
+  "par": 38,
+  "kind": "state",
+  "ket": "(|001> + |010> + |100>)/√3",
+  "brief": "Exactly one of the three qubits is 1, and nobody knows which. GHZ's great rival: lose one qubit of a GHZ state and the other two are left with no entanglement at all. Lose one qubit of a W state and the other two are still entangled.",
+  "amplitudes": {
+    "001": 0.5773502691896258,
+    "010": 0.5773502691896258,
+    "100": 0.5773502691896258
+  }
+}

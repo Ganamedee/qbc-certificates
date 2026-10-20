@@ -1,0 +1,13 @@
+{
+  "hole": 2,
+  "name": "The Singlet",
+  "qubits": 2,
+  "par": 13,
+  "kind": "state",
+  "ket": "(|01> - |10>)/√2",
+  "brief": "Two qubits that always disagree: 01 or 10, never 00 or 11. And there's a minus sign in the middle. That minus sign is the whole hole.",
+  "amplitudes": {
+    "01": 0.7071067811865475,
+    "10": -0.7071067811865475
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "hole": 1,
+  "name": "The Bell",
+  "qubits": 2,
+  "par": 11,
+  "kind": "state",
+  "ket": "(|00> + |11>)/√2",
+  "brief": "Two qubits that always agree when you measure them: 00 or 11, never 01 or 10. The most famous state in quantum computing.",
+  "amplitudes": {
+    "00": 0.7071067811865475,
+    "11": 0.7071067811865475
+  }
+}

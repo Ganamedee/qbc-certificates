@@ -1,0 +1,16 @@
+{
+  "hole": 4,
+  "name": "The Hadamard Switch",
+  "qubits": 2,
+  "par": 14,
+  "kind": "unitary",
+  "ket": "controlled-H: control q0, target q1",
+  "brief": "Build a gate, not a state. If q0 is 1, apply H to q1. If q0 is 0, leave q1 alone. It has to work for every input, not just |00>. Qiskit's own recipe for this gate costs 16 strokes. Par is 14.",
+  "target": [
+    [
+      "ch",
+      0,
+      1
+    ]
+  ]
+}

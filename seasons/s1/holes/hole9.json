@@ -1,0 +1,27 @@
+{
+  "hole": 9,
+  "name": "The Square",
+  "qubits": 4,
+  "par": 46,
+  "kind": "state",
+  "ket": "H on all four qubits, then CZ around a square: (q0,q1), (q1,q2), (q2,q3), (q3,q0)",
+  "brief": "A four-qubit cluster state, the kind of entangled resource that measurement-based quantum computing is built on. The obvious way uses four CZs, and CZ isn't in your bag. Every amplitude is +1/4 or -1/4: the sign is (-1) to the power x0x1 + x1x2 + x2x3 + x3x0.",
+  "amplitudes": {
+    "0000": 0.25,
+    "0001": 0.25,
+    "0010": 0.25,
+    "0011": -0.25,
+    "0100": 0.25,
+    "0101": 0.25,
+    "0110": -0.25,
+    "0111": 0.25,
+    "1000": 0.25,
+    "1001": -0.25,
+    "1010": 0.25,
+    "1011": 0.25,
+    "1100": -0.25,
+    "1101": 0.25,
+    "1110": 0.25,
+    "1111": 0.25
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "hole": 8,
+  "name": "The Toffoli",
+  "qubits": 3,
+  "par": 69,
+  "kind": "unitary",
+  "ket": "Toffoli (CCX): controls q0 and q1, target q2",
+  "brief": "Flip q2 only when q0 and q1 are both 1. On its own, this gate can build any classical logic circuit. Six CX is the proven minimum, so every stroke you save has to come from the one-qubit gates. Par is the textbook score.",
+  "target": [
+    [
+      "ccx",
+      0,
+      1,
+      2
+    ]
+  ]
+}

@@ -1,0 +1,2 @@
+# The graders' packages, installed by the score job only.
+qiskit==2.5.2

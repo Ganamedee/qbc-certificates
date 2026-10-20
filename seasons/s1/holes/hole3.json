@@ -1,0 +1,13 @@
+{
+  "hole": 3,
+  "name": "The GHZ",
+  "qubits": 3,
+  "par": 21,
+  "kind": "state",
+  "ket": "(|000> + |111>)/√2",
+  "brief": "Three qubits, one shared coin flip: all 0 or all 1. Named after Greenberger, Horne and Zeilinger.",
+  "amplitudes": {
+    "000": 0.7071067811865475,
+    "111": 0.7071067811865475
+  }
+}
