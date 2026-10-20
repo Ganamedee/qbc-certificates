@@ -1,8 +1,12 @@
 # Quantum Builders Club: certificates and milestones
 
-Claim a Quantum Builders Club certificate, or confirm Milestone 2 or 3, by opening an issue here with one of the forms below. A checker reads your public GitHub repos and runs the club's own tests against your code. Nobody reviews claims by hand: when every check passes, the certificate is issued automatically, with its own page on [quantumbuilders.club](https://quantumbuilders.club) that anyone can open to check it.
+Claim a Quantum Builders Club certificate, or confirm Milestone 2 or 3, on [quantumbuilders.club/claim](https://quantumbuilders.club/claim). A checker reads your public GitHub repos and runs the club's own tests against your code. Nobody reviews claims by hand: when every check passes, the certificate is issued automatically, with its own page on [quantumbuilders.club](https://quantumbuilders.club) that anyone can open to check it.
+
+Every claim is an issue in this repo, opened by the member's own GitHub account. The claim page opens it for you and shows you the checker's answer, or you can open one here yourself with a form.
 
 ## Claim one
+
+On [quantumbuilders.club/claim](https://quantumbuilders.club/claim), or with a form here:
 
 - [Quantum Builder: Foundations](https://github.com/Ganamedee/qbc-certificates/issues/new?template=01-club_foundations.yml)
 - [Quantum Builder: Intermediate](https://github.com/Ganamedee/qbc-certificates/issues/new?template=02-club_intermediate.yml)
@@ -19,10 +23,10 @@ Claim a Quantum Builders Club certificate, or confirm Milestone 2 or 3, by openi
 
 ## What happens
 
-1. You fill in the form: your name as it should appear on the certificate, and a link to each repo. Submitting opens a public issue.
-2. The checker runs straight away and comments on the issue, with a ✅ or ❌ for everything it looked at. Ladder projects take a few minutes; pathway builds install their own requirements and take longer.
-3. Anything ❌ says exactly what's missing. Fix it, push to GitHub, and comment `/recheck` on the issue (editing the form runs the checks again too).
-4. When everything passes, the certificate is issued within a few hours: a comment with its link and a LinkedIn button lands on the issue, and the issue closes. Milestones are confirmed and closed straight away.
+1. You pick the claim and give your name as it should appear on the certificate, and a link to each repo. The claim page files it here as a public issue (the first time, GitHub asks you to approve the club's app, which lets it do that as you), or a form here opens the issue.
+2. The checker runs straight away and comments on the issue, with a ✅ or ❌ for everything it looked at. The claim page shows the same answer. Ladder projects take a few minutes; pathway builds install their own requirements and take longer.
+3. Anything ❌ says exactly what's missing. Fix it, push to GitHub, and press **Check again** on the claim page, or comment `/recheck` on the issue (editing the claim runs the checks again too).
+4. When everything passes, the certificate is issued within a few hours: its link and a LinkedIn button appear on the claim page and in a comment on the issue, and the issue closes. Milestones are confirmed and closed straight away.
 
 ## What the checker looks at
 

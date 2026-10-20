@@ -1,6 +1,8 @@
-"""What a check found, in three forms: the result file the check job hands
-to the report job, the comment the member reads, and the result block hidden
-in that comment, which the issuer reads back before issuing anything.
+"""What a check found, in four forms: the result file the check job hands
+to the report job, the comment the member reads, the result block hidden in
+that comment, which the issuer reads back before issuing anything, and the
+report block beside it, which the club site's claim page reads to show the
+same answer.
 
 The check job runs members' code, so the report job treats its result file
 as untrusted: load() accepts only the exact shape below, and every piece of
@@ -17,6 +19,8 @@ from datetime import datetime
 
 VERSION = 1
 BLOCK_RE = re.compile(r"<!-- qbc-result v1 ([A-Za-z0-9+/=]{1,20000}) -->")
+REPORT_RE = re.compile(r"<!-- qbc-report v1 ([A-Za-z0-9+/=]{1,60000}) -->")
+MAX_COMMENT = 60_000    # GitHub refuses comments over 65,536 characters
 MAX_REPOS = 10
 MAX_ITEMS = 60
 MAX_TEXT = 300
@@ -87,6 +91,21 @@ class Result:
         }
         raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
         return "<!-- qbc-result v1 %s -->" % base64.b64encode(raw.encode()).decode()
+
+    def report_block(self, details: bool = True) -> str:
+        """The hidden report block: the comment's lines as data, for the claim
+        page on the club site (qbc_claim.js), which shows them as plain text.
+        Base64, like the result block, so nothing in it is read as Markdown."""
+        payload = {
+            "v": self.v, "passed": self.passed, "kind": self.kind, "title": self.title,
+            "checked_at": self.checked_at, "problems": self.problems, "notes": self.notes,
+            "repos": [{"label": r.label, "url": r.url, "skipped": r.skipped,
+                       "items": [{"ok": i.ok, "text": i.text, "detail": i.detail if details else ""}
+                                 for i in r.items]}
+                      for r in self.repos],
+        }
+        raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
+        return "<!-- qbc-report v1 %s -->" % base64.b64encode(raw.encode()).decode()
 
 
 # ── Reading a result back ───────────────────────────────────────────────────
@@ -209,8 +228,9 @@ def _repo_name(url: str) -> str:
     return "/".join(url.split("/")[3:5])
 
 
-def comment(result: Result, *, forms_url: str, guide_url: str) -> str:
-    """The comment the report job posts on the claim."""
+def comment(result: Result, *, forms_url: str, guide_url: str, claim_url: str = "") -> str:
+    """The comment the report job posts on the claim. claim_url is the
+    claim's page on the club site, where members who claimed there see it."""
     title = md(result.title, 120)
     lines = []
     if result.passed:
@@ -240,11 +260,18 @@ def comment(result: Result, *, forms_url: str, guide_url: str) -> str:
         lines.append("")
     lines.append(_next_steps(result, forms_url))
     lines.append("")
+    site = f" · [See it on {claim_url.split('//')[-1].split('/')[0]}]({claim_url})" if claim_url else ""
     lines.append(f"<sub>Checked {_when(result.checked_at)}, checker version {md(result.rules or '?', 40)}. "
-                 f"[What the checker looks at]({guide_url})</sub>")
+                 f"[What the checker looks at]({guide_url}){site}</sub>")
     lines.append("")
     lines.append(result.block())
-    return "\n".join(lines) + "\n"
+    text = "\n".join(lines) + "\n"
+    # The report block only repeats the comment, so it gives way first if the comment is long.
+    for details in (True, False):
+        report = result.report_block(details)
+        if len(text) + len(report) + 1 <= MAX_COMMENT:
+            return text + report + "\n"
+    return text
 
 
 def _next_steps(result: Result, forms_url: str) -> str:

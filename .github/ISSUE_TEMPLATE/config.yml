@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Claim on the club site
+    url: "https://quantumbuilders.club/claim"
+    about: The easy way to claim, with the checker's answer on the same page
   - name: The Quantum Builders Club
     url: "https://quantumbuilders.club"
     about: Questions about the club, the projects or a certificate

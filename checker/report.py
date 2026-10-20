@@ -16,7 +16,7 @@ from .sweep import LABELS
 
 
 def post(gh, repo: str, event: dict, result_path: Path, check_job: str, run_url: str,
-         forms_url: str, guide_url: str) -> str:
+         forms_url: str, guide_url: str, site_url: str = "") -> str:
     issue = event.get("issue") or {}
     number = int(issue["number"])
     try:
@@ -31,7 +31,8 @@ def post(gh, repo: str, event: dict, result_path: Path, check_job: str, run_url:
     if res is None:
         gh.comment(repo, number, result.error_comment(run_url))
         return "error"
-    gh.comment(repo, number, result.comment(res, forms_url=forms_url, guide_url=guide_url))
+    gh.comment(repo, number, result.comment(res, forms_url=forms_url, guide_url=guide_url,
+                                            claim_url=f"{site_url}/claim/{number}" if site_url else ""))
     labels = {l.get("name") for l in issue.get("labels") or []}
     if res.passed:
         add = ["confirmed"] if res.kind == "milestone" else ["passed"]

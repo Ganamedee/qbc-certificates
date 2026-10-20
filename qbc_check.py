@@ -151,7 +151,8 @@ def cmd_report(args) -> int:
     event = json.loads(Path(args.event).read_text(encoding="utf-8"))
     outcome = report.post(client(), repo, event, Path(args.result), args.check_job, args.run_url,
                           forms_url=f"https://github.com/{repo}/issues/new/choose",
-                          guide_url=f"https://github.com/{repo}#what-the-checker-looks-at")
+                          guide_url=f"https://github.com/{repo}#what-the-checker-looks-at",
+                          site_url=found["base_url"].rstrip("/"))
     print(f"Reported: {outcome}")
     return 0
 

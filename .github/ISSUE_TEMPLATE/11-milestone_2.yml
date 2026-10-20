@@ -12,7 +12,7 @@ body:
         - The repo is public and yours (or in an organisation you're a public member of), and not a fork.
         - It has no GUIDE.md and no solution/ folder.
 
-        This issue is public: your GitHub username, your repo links are visible to anyone. Never put an email address here.
+        This issue is public: your GitHub username and your repo links are visible to anyone. Never put an email address here.
   - type: dropdown
     id: claim
     attributes:
