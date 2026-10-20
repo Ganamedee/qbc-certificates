@@ -1,0 +1,41 @@
+{
+ "season": 3,
+ "title": "🕵️ Season 3: Rigged RNG Hunt",
+ "updated": "2026-10-20 17:17 UTC",
+ "cases_closed": 0,
+ "sharp_eye": [],
+ "clean_sweep": [],
+ "scores": [],
+ "flaws": [
+  {
+   "flaw": "loaded",
+   "name": "🪙 the loaded coin",
+   "caught": 0,
+   "cases": 0
+  },
+  {
+   "flaw": "sticky",
+   "name": "🧲 the sticky coin",
+   "caught": 0,
+   "cases": 0
+  },
+  {
+   "flaw": "warming",
+   "name": "🌡️ the warming coin",
+   "caught": 0,
+   "cases": 0
+  },
+  {
+   "flaw": "lazy",
+   "name": "🧱 the lazy bit",
+   "caught": 0,
+   "cases": 0
+  },
+  {
+   "flaw": "loop",
+   "name": "🔁 the short loop",
+   "caught": 0,
+   "cases": 0
+  }
+ ]
+}
