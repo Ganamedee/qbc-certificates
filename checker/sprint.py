@@ -8,7 +8,7 @@ that time. From the member's own pushes, and the README each one left:
 - the weeks: pushes of theirs in at least 4 of the 6 weeks after week 0;
 - the ship: a What I shipped section, pushed by the end of week 6.
 
-skool/certificates/README.md section 1 is the source; the numbers are in
+course/certificates/README.md section 1 is the source; the numbers are in
 rules.py.
 """
 

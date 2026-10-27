@@ -61,7 +61,7 @@ def build(dest: Path, root: Path = REPO_ROOT) -> Path:
     for project in rules.CARDS:
         if not project.card_test:
             continue
-        markdown = (root / "skool" / "pathways" / project.card).read_text(encoding="utf-8")
+        markdown = (root / "course" / "pathways" / project.card).read_text(encoding="utf-8")
         target = card_path(dest, project)
         target.parent.mkdir(parents=True)
         target.write_text(card_tests(markdown, project.card_test), encoding="utf-8")
