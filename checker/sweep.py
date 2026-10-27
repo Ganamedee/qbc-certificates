@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from .gh import is_actions_bot
@@ -18,6 +19,7 @@ from .result import md
 
 CODE_RE = re.compile(r"QBC-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}")
 LINKEDIN = "https://www.linkedin.com/profile/add?"
+SHARE = "https://www.linkedin.com/sharing/share-offsite/?url="
 LABELS = {
     "passed": ("0e8a16", "All checks passed; the certificate is on its way"),
     "failed": ("d93f0b", "Some checks failed"),
@@ -67,14 +69,16 @@ def message(status: dict, title: str) -> str:
         url = status["verify_url"]
         files = (f"- The certificate itself: [the image]({url}/certificate.png) to post, and "
                  f"[the PDF]({url}/certificate.pdf) to print\n") if status.get("image") is True else ""
-        return (f"## 🎓 Your certificate is live\n\n**{md(title, 120)}**, code `{status['code']}`\n\n"
+        return (f"## Your certificate is live\n\n**{md(title, 120)}**, code `{status['code']}`\n\n"
                 f"- Its page, which anyone can open to check it: {url}\n"
-                f"- [Add it to your LinkedIn profile]({status['linkedin_url']})\n" + files + "\n"
+                f"- [Add it to your LinkedIn profile]({status['linkedin_url']})\n"
+                f"- [Share it in a LinkedIn post]({SHARE}{urllib.parse.quote(url, safe='')})\n"
+                + files + "\n"
                 "The page always shows whether the certificate is valid, so share the link "
-                "wherever you like. Congratulations!\n\n" + marker(status) + "\n")
+                "wherever you like. Congratulations.\n\n" + marker(status) + "\n")
     if status["status"] == "waiting":
-        return f"## ⏳ Not issued yet\n\n{md(status['reason'])}\n\n" + marker(status) + "\n"
-    return (f"## ⚠️ Passed the checks, but not issued\n\n{md(status['reason'])}\n\n"
+        return f"## Not issued yet\n\n{md(status['reason'])}\n\n" + marker(status) + "\n"
+    return (f"## Passed the checks, but not issued\n\n{md(status['reason'])}\n\n"
             + marker(status) + "\n")
 
 

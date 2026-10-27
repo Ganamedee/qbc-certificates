@@ -2,7 +2,7 @@
 """Quantum Builders Club automatic checker: checks certificate and
 milestone claims, reports on them, and issues the certificates that pass.
 Python 3.13 on the club's runners; standard library only (plus the club's
-stack inside the sandbox). skool/certificates/README.md explains the flow.
+stack inside the sandbox). course/certificates/README.md explains the flow.
 
 In the public claim forms repo (Ganamedee/qbc-certificates), its workflows run:
   python3 qbc_check.py setup                 make the sandbox (user, folders, club stack)

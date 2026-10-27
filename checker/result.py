@@ -280,7 +280,7 @@ def _next_steps(result: Result, forms_url: str) -> str:
                 "automatically within a few hours: a comment with its verify link and a LinkedIn "
                 "button lands here, and this issue closes.")
     if result.passed:
-        return (f"**Confirmed: {md(result.title, 120)}.** 🎉 This issue is labelled `confirmed` and "
+        return (f"**Confirmed: {md(result.title, 120)}.** This issue is labelled `confirmed` and "
                 "closes now: that's the club's record of your milestone.")
     if result.problems and not result.repos:
         return ("**What to do:** edit this issue to fix the form (the checks run again when you "
@@ -290,7 +290,8 @@ def _next_steps(result: Result, forms_url: str) -> str:
 
 
 def error_comment(run_url: str) -> str:
-    """When the checker itself failed: the member did nothing wrong."""
+    """When the checker itself failed: the member did nothing wrong. The claim page finds this comment by its
+    first line (ERROR_HEAD in qbc_claim.js), so that line never changes."""
     return ("## ⚠️ The checker hit a problem on its side\n\n"
             "This isn't about your repos. Comment `/recheck` to try again. If it happens twice, "
             f"the club owner can see what went wrong in [the run log]({run_url}).\n")

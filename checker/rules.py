@@ -1,5 +1,5 @@
 """What the checker checks: every project, every certificate and the two
-milestones it confirms. skool/certificates/README.md section 1 is the source;
+milestones it confirms. course/certificates/README.md section 1 is the source;
 this module is that table in a form the checker can run, and the claim forms
 are written from it (publish.py).
 
@@ -65,7 +65,7 @@ class Project:
     tests: str = ""                 # the club's core test file, tests/<name>
     expected: int = 0
     # Build cards
-    card: str = ""                  # skool/pathways/<card>
+    card: str = ""                  # course/pathways/<card>
     card_test: str = ""             # first test in the card's test block
     card_test_file: str = ""        # where the member keeps that block
     card_expected: int = 0
